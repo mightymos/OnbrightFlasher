@@ -12,6 +12,10 @@
 
 #include <SoftWire.h>
 
+// notes
+// setfuse 18 249
+// reset function, input only, no deglitch
+
 // chip ID for OBS38S03
 #define RESET_CHIP    0x7c
 #define HANDSHAKE01   0x7d

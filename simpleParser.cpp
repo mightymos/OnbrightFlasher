@@ -83,18 +83,19 @@ uint8_t parserCore::getLine ()
  *  like getLine, but block until a complete line is read
  */
 
-uint8_t parserCore::getLineWait (void)
-{
-  uint8_t status;
-
-  do {
-    status = getLine();
-
-    // FIXME: feeding watchdog timer on esp32 makes this function less portable
-    ESP.wdtFeed();
-  } while (status == 0);
-  return status;
-}
+//uint8_t parserCore::getLineWait (void)
+//{
+//  uint8_t status;
+//
+//  do {
+//    status = getLine();
+//
+//    // FIXME: feeding watchdog timer on esp8265 makes this function less portable
+//    ESP.wdtFeed();
+//
+//  } while (status == 0);
+//  return status;
+//}
 
 
 bool parserCore::IsWhitespace (char c)

@@ -1,0 +1,22 @@
+Hook up flasher hardware and I2C connections (leave Sonoff target unpowered).
+Upload sketch to ESP826x.
+
+Type "handshake" into serial monitor.
+
+Power on target Sonoff with ground and 3.3V.
+
+Serial monitor should read:
+Chip read: A
+Connected...
+
+If it does not, check hardware connections and try again.
+
+Type "erase".
+
+Type "setfuse 18 249"
+
+Send each hex file line individually in serial monitor.
+
+Type "mcureset"
+
+Red LED on Sonoff target should begin blinking on and off with about once a second period.
