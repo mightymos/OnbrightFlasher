@@ -14,10 +14,6 @@ Unfortunately, the reset function on the reset pin of the Sonoff RF Bridge is pr
 Therefore, for the first use of this sketch an independently powered Arduino chip would need to be used as source flasher.  
 
 ## Status
-[1] Reading/writing configuration bytes
-[2] Read flash memory
-[3] Verify flash memory
-
 | Item | Status | Note | 
 | ------------- | ------------- | ------------- | 
 |  Reading/writing configuration bits | PARTIAL  | Could be easier | 
