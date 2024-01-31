@@ -8,8 +8,9 @@
 
 #include "Arduino.h"
 #include "simpleParser.h"
-//#include <avr/pgmspace.h>
 
+// uncomment to display parser output to serial console
+//#define DEBUG
 
 /*
  *  Reset the line buffer
@@ -83,19 +84,15 @@ uint8_t parserCore::getLine ()
  *  like getLine, but block until a complete line is read
  */
 
-//uint8_t parserCore::getLineWait (void)
-//{
-//  uint8_t status;
-//
-//  do {
-//    status = getLine();
-//
-//    // FIXME: feeding watchdog timer on esp8265 makes this function less portable
-//    ESP.wdtFeed();
-//
-//  } while (status == 0);
-//  return status;
-//}
+uint8_t parserCore::getLineWait (void)
+{
+  uint8_t status;
+
+  do {
+    status = getLine();
+  } while (status == 0);
+  return status;
+}
 
 
 bool parserCore::IsWhitespace (char c)
@@ -200,8 +197,9 @@ int8_t parserCore::keyword (const char *keys)
 
   while (pgm_read_byte(thisKey)) {
     match = tokcasecmp(p, thisKey);
-#if defined(DEBUG) && DEBUG
-    extern char spbuffer[];
+#if defined(DEBUG)
+    //extern char spbuffer[];
+    char spbuffer[128];
     sprintf(spbuffer, "key='%s', p='%s', match = %d\n", thisKey, p, match);
     S->print(spbuffer);
 #endif
