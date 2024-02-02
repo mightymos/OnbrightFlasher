@@ -156,7 +156,6 @@ bool OnbrightFlasher::resetMCU(SoftWire sw)
   SoftWire::result_t result;
 
   uint8_t addr;
-  uint8_t unknownData;
 
   bool flag = true;
 
@@ -319,9 +318,6 @@ bool OnbrightFlasher::readFlashByte(SoftWire sw, const unsigned int flashAddress
   SoftWire::result_t result;
 
   uint8_t addr;
-  uint8_t data;
-
-  unsigned int index;
 
   uint8_t highByte = (flashAddress >> 8) & 0xff;
   uint8_t lowByte  = flashAddress & 0xff;
@@ -378,9 +374,6 @@ bool OnbrightFlasher::writeFlashByte(SoftWire sw, const unsigned int flashAddres
   SoftWire::result_t result;
 
   uint8_t addr;
-  uint8_t data;
-
-  unsigned int index;
 
   uint8_t highByte = (flashAddress >> 8) & 0xff;
   uint8_t lowByte  = flashAddress & 0xff;

@@ -13,29 +13,36 @@
 // https://github.com/WestfW/Duino-hacks/blob/master/hvTiny28prog/hvTiny28prog.ino
 #include "simpleParser.h"
 
-// wemos d1 mini
-//int ledPin = 2;
-// ESP8265 in Sonoff (pin 12 or GPIO13)
-int ledPin = 13;
+#if defined(LED_BUILTIN)
+  #define LED_AVAILABLE
+  int ledPin = LED_BUILTIN;
+#endif
 
-// Sonoff
-int pushButton = 0;
+// not using at the moment
+//#define PUSH_BUTTON_AVAILABLE
+#if defined(PUSH_BUTTON_AVAILABLE)
+  // Sonoff bridge (gpio0)
+  int pushButton = 0;
+#endif
 
-// various board pinouts
-// Sonoff ESP8285 pin 16 and pin 24 (gpio4 and gpio5) (or USBRXD and UXBTXD on J3 connector)
-// Wemos D1 mini D2 and D1 should be the same (gpio4 and gpio5)
-int sdaPin = 4;
-int sclPin = 5;
+#if defined(ESP8266)
+  // various board pinouts
+  // Sonoff ESP8285 pin 16 and pin 24 (gpio4 and gpio5) (or USBRXD and UXBTXD on J3 connector)
+  // Wemos D1 mini D2 and D1 should be the same (gpio4 and gpio5)
+  int sdaPin = 4;
+  int sclPin = 5;
+#elif defined(ESP32)
+  // ESP32-WROOM-32 38 pins
+  int sdaPin = 32;
+  int sclPin = 33;
+#endif
 
-// the official msm9066 programmer appears to only be capable of issuing commands
-// if the processor has just been power cycled (or reset?)
-// (but assigned reset pin function is unknown currently)
-// (the official programmer, if not supplying power itself, must consequently be attached to monitor 3.3V)
-//int vccMonitorPin = 19;
 
+// parses received serial strings looking for hex lines or commands
 simpleParser<100> ttycli(Serial);
 byte debug = 0;
 
+// valid commands
 static const char PROGMEM cmds[] = 
 #define CMD_IDLE 0
   "idle "
@@ -63,6 +70,7 @@ static const char PROGMEM cmds[] =
  "mcureset "
   ;
 
+// using software defined i2c because some esp chips do not have dedicated i2c hardware
 SoftWire sw(sdaPin, sclPin);
 OnbrightFlasher flasher;
 
@@ -93,6 +101,7 @@ enum
 // state machine for handshake
 unsigned char state = idle;
 
+// count and display an index to user just so they know program is still running
 int heartbeatCount = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -106,33 +115,44 @@ void toggleLED_nb(void)
 
     if (now - lastToggle > (unsigned int) (togglePeriod / 2) )
     {
+
+#if defined(LED_AVAILABLE)
         // toggle
         digitalWrite(ledPin, !digitalRead(ledPin));
+#endif
+
         lastToggle = now;
     }
 }
 
 void setup()
 {
+
+#if defined(LED_AVAILABLE)
   pinMode(ledPin, OUTPUT);
   digitalWrite(ledPin, HIGH);
+#endif
 
   //rst_info* rinfo = ESP.getResetInfoPtr();
   //Serial.println(rinfo->reason);  
 
-  //
+  // often esp gpio pins have internal pullups
+  // so use them instead of having to add external resistors
   sw.enablePullups(true);
 
   // shorten from 100ms default so watchdog does not reset processor
   sw.setTimeout_ms(20);
+
+  // done configuring software i2c
   sw.begin();
 
-  // FIXME: might be causing a problem
-  // hardware watchdog cannot be disabled
-  // so seemingly no real point in disabling software watchdog
+  // esp32 uses different functions to initialize and control watchdog
+#if defined(ESP8266)
+  // esp8265/66 hardware watchdog cannot be disabled
+  // however, software watchdog can be disabled
   ESP.wdtDisable();
+#endif
 
-  //Serial.begin(9600); older default bit rate
   Serial.begin(115200);
 
   // delay so PC side serial monitor has time to respond
@@ -154,25 +174,26 @@ void setup()
 
 void loop()
 {
+  // track state for handshake
   static uint8_t state = idle;
   static uint8_t status;
 
-  uint8_t configByte;
   uint8_t chipType;
 
-  unsigned int index;
-
+  // detect acknowledgements where expected in i2c communication for basic error checking
   bool gotAck;
 
   int clicmd;
-  int16_t addr, val;
+  int16_t addr;
   uint8_t results[64];
 
   unsigned int writeCount = 0;
   unsigned int errorCount = 0;
 
-  // clear watchdog to avoid reset
+#if defined(ESP8266)
+  // clear watchdog to avoid reset if using an ESP8265/8266
   ESP.wdtFeed();
+#endif
 
 
   // want similar to what getLineWait does but not blocking
@@ -182,8 +203,7 @@ void loop()
   }
 
   // blocking version will trigger watchdog, so avoid that
-  //ttycli.getLineWait();
-  //Returns 0 until end-of-line seen.
+  // returns 0 until end-of-line seen.
   status = ttycli.getLine();
 
 
@@ -250,10 +270,10 @@ void loop()
           }
           break;
         case CMD_SIGNATURE:
-          Serial.print("Read chip type...");
+          Serial.println("Read chip type...");
           if (flasher.readChipType(sw, chipType))
           {
-            Serial.print("Chip read: ");
+            Serial.print("Chip read: 0x");
             Serial.println(chipType, HEX);
           } else {
             Serial.println("Chip failed to read");
@@ -343,6 +363,7 @@ void loop()
       break;
   }
 
-  // period led blink to show board is alive
+  // periodic led blink to show board is alive
+  // this will only actually toggle pin if LED_AVAILABLE is defined
   toggleLED_nb();
 }
