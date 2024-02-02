@@ -28,10 +28,14 @@
 #if defined(ESP8266)
   // various board pinouts
   // Sonoff ESP8285 pin 16 and pin 24 (gpio4 and gpio5) (or USBRXD and UXBTXD on J3 connector)
-  // Wemos D1 mini D2 and D1 should be the same (gpio4 and gpio5)
+  // Wemos D1 mini pin D2 and pin D1  (gpio4 and gpio5)
   int sdaPin = 4;
   int sclPin = 5;
-#elif defined(ESP32)
+#elif defined (CONFIG_IDF_TARGET_ESP32S3)
+  // from [https://esp32.com/viewtopic.php?t=26127]
+  int sdaPin = 4;
+  int sclPin = 5;
+#elif defined(CONFIG_IDF_TARGET_ESP32)
   // ESP32-WROOM-32 38 pins
   int sdaPin = 32;
   int sclPin = 33;
