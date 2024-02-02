@@ -351,7 +351,7 @@ void loop()
         Serial.print("Handshake failed (");
         Serial.print(heartbeatCount);
         Serial.println(")");
-        Serial.println("check SCL/SDA and cycle power on target?");
+        Serial.println("cycle power to target (start with power off and then turn on)");
 
         heartbeatCount += 1;
       }
