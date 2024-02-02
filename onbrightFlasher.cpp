@@ -66,7 +66,7 @@ bool OnbrightFlasher::onbrightHandshake(SoftWire sw)
       result = sw.llStart((addr << 1) + mode);
       sw.stop();
 
-      // send read address command, however no actual read seems to be performed
+      // send write address command, however no actual write seems to be performed
       addr = WRITE_ADDRESS;
       mode = SoftWire::readMode;
       result = sw.llStart((addr << 1) + mode);
@@ -75,7 +75,13 @@ bool OnbrightFlasher::onbrightHandshake(SoftWire sw)
       sw.stop();
 
       // ack indicates that onbright microcontroller is responding to handshake
-      gotAck = true;
+      if (result == SoftWire::ack)
+      {
+        Serial.println("Handshake complete...");
+        gotAck = true;
+      } else {
+        Serial.println("Handshake INCOMPLETE...");
+      }
 
       // force exit from loop
       index = MAX_HANDSHAKE_RETRIES;
@@ -88,8 +94,9 @@ bool OnbrightFlasher::onbrightHandshake(SoftWire sw)
 bool OnbrightFlasher::readChipType(SoftWire sw, unsigned char& chipType)
 {
   SoftWire::mode_t mode;
+  SoftWire::result_t result;
+
   uint8_t addr;
-  uint8_t result;
 
   bool flag = true;
 
@@ -101,16 +108,22 @@ bool OnbrightFlasher::readChipType(SoftWire sw, unsigned char& chipType)
     // we need to still fall through to send stop condition
     // or send stop condition every time nack is found
     flag = false;
+
+    Serial.println("Write address failed...");
   }
 
   result = sw.llWrite(READ_CONFIG_BYTE);
   if (result == SoftWire::nack) {
     flag = false;
+
+    Serial.println("Read config byte failed...");
   }
 
   result = sw.llWrite(CHIP_TYPE_BYTE);
   if (result == SoftWire::nack) {
     flag = false;
+
+    Serial.println("Chip type failed...");
   }
 
   sw.stop();
@@ -120,10 +133,14 @@ bool OnbrightFlasher::readChipType(SoftWire sw, unsigned char& chipType)
   result = sw.llStart((addr << 1) + mode);
   if (result == SoftWire::nack) {
     flag = false;
+
+    Serial.println("Read address failed...");
   }
 
   // send nack since there's only one byte to read
   result = sw.llRead(chipType, false);
+
+  // does this make sense?
   if (result == SoftWire::nack) {
     flag = false;
   }
@@ -136,9 +153,9 @@ bool OnbrightFlasher::readChipType(SoftWire sw, unsigned char& chipType)
 bool OnbrightFlasher::resetMCU(SoftWire sw)
 {
   SoftWire::mode_t mode;
-  uint8_t addr;
-  uint8_t result;
+  SoftWire::result_t result;
 
+  uint8_t addr;
   uint8_t unknownData;
 
   bool flag = true;
@@ -159,8 +176,9 @@ bool OnbrightFlasher::resetMCU(SoftWire sw)
 bool OnbrightFlasher::eraseChip(SoftWire sw)
 {
   SoftWire::mode_t mode;
+  SoftWire::result_t result;
+
   uint8_t addr;
-  uint8_t result;
 
   bool flag = true;
 
@@ -186,8 +204,9 @@ bool OnbrightFlasher::eraseChip(SoftWire sw)
 bool OnbrightFlasher::readConfigByte(SoftWire sw, const unsigned char address, unsigned char &configByte)
 {
   SoftWire::mode_t mode;
+  SoftWire::result_t result;
+
   uint8_t addr;
-  uint8_t result;
 
   bool flag = true;
 
@@ -232,8 +251,9 @@ bool OnbrightFlasher::readConfigByte(SoftWire sw, const unsigned char address, u
 bool OnbrightFlasher::writeConfigByte(SoftWire sw, unsigned char address, unsigned char configByte)
 {
   SoftWire::mode_t mode;
+  SoftWire::result_t result;
+
   uint8_t addr;
-  uint8_t result;
 
   uint8_t index;
 
@@ -296,10 +316,10 @@ bool OnbrightFlasher::writeConfigByte(SoftWire sw, unsigned char address, unsign
 bool OnbrightFlasher::readFlashByte(SoftWire sw, const unsigned int flashAddress, unsigned char &flashByte)
 {
   SoftWire::mode_t mode;
+  SoftWire::result_t result;
 
   uint8_t addr;
   uint8_t data;
-  uint8_t result;
 
   unsigned int index;
 
@@ -355,10 +375,10 @@ bool OnbrightFlasher::readFlashByte(SoftWire sw, const unsigned int flashAddress
 bool OnbrightFlasher::writeFlashByte(SoftWire sw, const unsigned int flashAddress, const unsigned char flashByte)
 {
   SoftWire::mode_t mode;
+  SoftWire::result_t result;
 
   uint8_t addr;
   uint8_t data;
-  uint8_t result;
 
   unsigned int index;
 

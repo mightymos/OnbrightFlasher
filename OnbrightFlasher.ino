@@ -87,14 +87,13 @@ enum
 {
   idle,
   handshake,
-  connected,
-  prompt,
-  finished
+  connected
 };
 
 // state machine for handshake
 unsigned char state = idle;
 
+int heartbeatCount = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 // non blocking LED toggle
@@ -310,33 +309,37 @@ void loop()
       gotAck = flasher.onbrightHandshake(sw);
       if (gotAck)
       {
+        // there seems to be about a 20ms delay in official programmer traces
+        delay(20);
+
         // we must read chip type to complete handshake
         if (flasher.readChipType(sw, chipType))
         {
-          Serial.print("Chip read: ");
+          Serial.print("Chip read: 0x");
           Serial.println(chipType, HEX);
 
           state = connected;
         } else {
           Serial.println("Chip failed to read");
-          Serial.println("Can try command [signature] over serial port to see if Chip read: A");
+          Serial.print("However, chip type reported was: 0x");
+          Serial.println(chipType, HEX);
+          Serial.println("Can try command [signature] or [handshake] to retry");
 
           state = idle;
         }
+      } else {
+        Serial.print("Handshake failed (");
+        Serial.print(heartbeatCount);
+        Serial.println(")");
+        Serial.println("check SCL/SDA and cycle power on target?");
+
+        heartbeatCount += 1;
       }
       break;
     case connected:
       Serial.println("Connected...");
-      state = prompt;
-      break;
-    case prompt:
-      if (resetToIdle)
-      {
-        resetToIdle = false;
-        state = idle;
-      }
-      break;
-    case finished:
+      Serial.println("Returning to idle state...");
+      state = idle;
       break;
   }
 
