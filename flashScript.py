@@ -190,6 +190,37 @@ def send_file_content(ser, file_path):
         return False
 
 
+def clear_mcu(ser):
+    try:
+        # Send MCU clear command
+        ser.write(b"clear\r\n")
+
+        # Wait for the first response
+        response1 = ser.readline().decode('utf-8').strip()
+        print(f"Response 1: {response1}")
+
+        # Check if the first response matches the expected pattern
+        if response1.lower() == "clear":
+            # Wait for the second response
+            response2 = ser.readline().decode('utf-8').strip()
+            print(f"Response 2: {response2}")
+
+            # Check if the second response matches the expected pattern
+            if response2.lower() == "chip erase successful":
+                print("MCU erase successful.")
+                return True
+            else:
+                print("Error: Unexpected second response or chip erase failed.")
+                return False
+        else:
+            print("Error: Unexpected first response or MCU erase failed.")
+            return False
+
+    except Exception as e:
+        print(f"Error during MCU erase: {e}")
+        return False
+
+
 def erase_mcu(ser):
     try:
         # Send MCU erase command
