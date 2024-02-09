@@ -30,10 +30,12 @@
 // Private Methods /////////////////////////////////////////////////////////////
 // Functions only available to other functions in this library
 
-byte OnbrightFlasher::onbrightHandshake(void)
+bool OnbrightFlasher::onbrightHandshake(void)
 {
   byte result;
   unsigned int index;
+
+  bool gotFirstAck = false;
 
   // indicate a write
   Wire.beginTransmission(DEVICE_ADDRESS);
@@ -56,21 +58,19 @@ byte OnbrightFlasher::onbrightHandshake(void)
       Wire.requestFrom(DEVICE_ADDRESS, 1);
       result = Wire.endTransmission();
 
-      Serial.print("Retried times: ");
-      Serial.println(index);
-      Serial.println("Tried handshake 01+02+Read");
-      Serial.print("Result: ");
-      Serial.println(result);
+      //Serial.print("Retried times: ");
+      //Serial.println(index);
+      //Serial.println("Tried handshake 01+02+Read");
+      //Serial.print("Result: ");
+      //Serial.println(result);
 
-      // FIXME: this is an ugly hack
-      // because we are not seeing ack on last i2c for some reason, so force
-      result = 0;
+      gotFirstAck = true;
 
       index = MAX_HANDSHAKE_RETRIES;
     }
   }
 
-  return result;
+  return gotFirstAck;
 }
 
 // should be 0x0A for OnBright OBS38S003 8051 based microcontroller
@@ -78,6 +78,7 @@ byte OnbrightFlasher::readChipType(unsigned char& chipType)
 {
   // used to check for nack/ack, success, etc.
   byte result;
+  //byte numBytes;
 
   // check chip type
   Wire.beginTransmission(DEVICE_ADDRESS);
@@ -86,6 +87,7 @@ byte OnbrightFlasher::readChipType(unsigned char& chipType)
 
   result = Wire.endTransmission();
 
+  // this returns number of bytes so could use that
   Wire.requestFrom(DATA_ADDRESS, 1);
   while(Wire.available() > 0)
   {

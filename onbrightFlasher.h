@@ -86,7 +86,7 @@ class OnbrightFlasher
   public:
 
     byte eraseChip(void);
-    byte onbrightHandshake(void);
+    bool onbrightHandshake(void);
 
     byte readConfigByte(const unsigned char address, unsigned char &configByte);
     byte writeConfigByte(const unsigned char address, const unsigned char configByte);

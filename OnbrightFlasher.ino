@@ -259,6 +259,9 @@ void loop()
   // for ack, nack, etc. results
   byte result;
 
+  // used for handshake only
+  bool gotAck;
+
   // for parsing of serial
   int clicmd;
   int16_t addr;
@@ -346,6 +349,7 @@ void loop()
           break;
         case CMD_HANDSHAKE:
           Serial.println("State changing to handshake");
+          Serial.println("cycle power to target (start with power off and then turn on)");
           state = handshake;
           break;
         case CMD_ERASE:
@@ -427,14 +431,16 @@ void loop()
     case idle:
       break;
     case handshake:
-      result = flasher.onbrightHandshake();
-      //checkError(result);
+      gotAck = flasher.onbrightHandshake();
 
-      if (result > 0)
+      // cannot really depend on nack/ack to indicate success in this instance
+      // because there is a mix of expected nacks or expected acks
+      // but handshake will return true if first expected ack is received
+      if (!gotAck)
       {
 
 #ifdef VERBOSE_DEBUG
-        Serial.print("Handshake failed (");
+        Serial.print("Handshake FAILED (");
         Serial.print(heartbeatCount);
         Serial.println(")");
         Serial.println("cycle power to target (start with power off and then turn on)");
@@ -442,10 +448,12 @@ void loop()
 
         heartbeatCount += 1;
       } else {
-        // there seems to be about a 20ms delay in official programmer traces
-        delay(20);
+        Serial.println("Handshake succeeded");
 
-        // we must read chip type to complete handshake apparently
+        // there seems to be about a 120ms delay in official programmer traces
+        delay(120);
+
+        // we apparently read chip type after handshake
         result = flasher.readChipType(chipType);
         checkError(result);
 
