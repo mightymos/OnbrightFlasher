@@ -10,12 +10,13 @@
 // example: https://github.com/WestfW/Duino-hacks/blob/master/hvTiny28prog/hvTiny28prog.ino
 #include "simpleParser.h"
 
-// For unknown reasons SoftWire seems to work perfectly on ESP8285/ESP8286.
-// However, my ESP32 board sometimes has errors.
-// ESP32 has hardware I2C which seems to work perfectly with Wire.
-// NOTE ***************************************************
-// SEE onbrightFlasher.h to uncomment/comment defines
-// NOTE ***************************************************
+// choose whether to use SoftWire or Wire library
+#include "projectDefs.h"
+
+// SoftWire seems to work perfectly on ESP8285/ESP8286.
+// However, my ESP32 board sometimes has errors for unknown reasons.
+// ESP32 has hardware I2C which seems to work better with Wire
+// (no write errors, though erase times out but still works...).
 #if defined(USE_SOFTWIRE_LIBRARY) && defined(USE_WIRE_LIBRARY)
   #error Please uncomment either USE_SOFTWIRE_LIBRARY or USE_WIRE_LIBRARY but not both.
 #elif defined(USE_SOFTWIRE_LIBRARY)
@@ -106,10 +107,10 @@ static const char PROGMEM cmds[] =
 // 8051 microcontroller flashing protocol
 OnbrightFlasher flasher;
 
-// applies if we use beginTransmission()/endTransmission()
+// applies if we use beginTransmission()/endTransmission() style
 // which we do anyway now in order to be compatible with Wire library
-char swTxBuffer[32];
-char swRxBuffer[32];
+char swTxBuffer[64];
+char swRxBuffer[64];
 
 
 // storage for reading or writing to microcontroller flash memory
@@ -352,17 +353,11 @@ void loop()
           Serial.println("cycle power to target (start with power off and then turn on)");
           state = handshake;
           break;
-        case CMD_ERASE:
-          Serial.println("Erasing chip...");
-          result = flasher.eraseChip();
-          checkError(result);
-
-          if (result > 0)
-          {
-            Serial.println("Chip erase FAILED");
-          } else {
-            Serial.println("Chip erase successful");
-          }
+        case CMD_VERSION:
+          Serial.print("Date: ");
+          Serial.print(__DATE__);
+          Serial.print(" Time: ");
+          Serial.println(__TIME__);
           break;
         case CMD_SIGNATURE:
           Serial.println("Read chip type...");
@@ -379,6 +374,20 @@ void loop()
             Serial.println(chipType, HEX);
           }
           break;
+        case CMD_ERASE:
+          Serial.println("Erasing chip...");
+          result = flasher.eraseChip();
+          checkError(result);
+
+          // FIXME: this is a hack for now, because sometimes Wire timeouts
+          // even though erase worked (confirmed by reading flash byte at 0 as 255 (i.e., 0xFF))
+          if ((result != 0) && (result != 5))
+          {
+            Serial.println("Chip erase FAILED");
+          } else {
+            Serial.println("Chip erase successful");
+          }
+          break;
         case CMD_GET_FUSE:
           Serial.println("Get configuration byte...");
           addr = ttycli.number();
@@ -393,6 +402,36 @@ void loop()
             Serial.print(addr);
             Serial.print(") is: ");
             Serial.println(results[0]);
+          }
+          break;
+        case CMD_READ_FLASH:
+          Serial.println("Reading flash...");
+          addr = ttycli.number();
+          result = flasher.readFlashByte(addr, results[0]);
+          checkError(result);
+
+          if (result > 0)
+          {
+            Serial.println("Read flash FAILED");
+          } else {
+            Serial.print("Flash at (");
+            Serial.print(addr);
+            Serial.print(") is: ");
+            Serial.println(results[0]);
+          }
+          break;
+        case CMD_WRITE_FLASH:
+          Serial.println("Writing flash...");
+          addr = ttycli.number();
+          results[0] = ttycli.number();
+          result = flasher.writeFlashByte(addr, results[0]);
+          checkError(result);
+
+          if (result > 0)
+          {
+            Serial.println("Write flash FAILED");
+          } else {
+            Serial.println("Wrote flash byte");
           }
           break;
         case CMD_SET_FUSE:

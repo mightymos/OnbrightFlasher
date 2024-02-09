@@ -10,9 +10,6 @@
 // for byte type
 #include <Arduino.h>
 
-// uncomment only one line at a time
-#define USE_SOFTWIRE_LIBRARY
-//#define USE_WIRE_LIBRARY
 
 // advice on switching between SoftWire and Wire libraries
 // [https://arduino-craft-corner.de/index.php/2023/11/29/replacing-the-wire-library-sometimes/]

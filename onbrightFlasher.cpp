@@ -6,9 +6,14 @@
 // include this library's description file
 #include "onbrightFlasher.h"
 
-#if defined(USE_SOFTWIRE_LIBRARY)
+// choose whether to use SoftWire or Wire library
+#include "projectDefs.h"
+
+//
+#if defined(USE_SOFTWIRE_LIBRARY) && defined(USE_WIRE_LIBRARY)
+  #error Please uncomment either USE_SOFTWIRE_LIBRARY or USE_WIRE_LIBRARY but not both.
+#elif defined(USE_SOFTWIRE_LIBRARY)
   // softwire I2C
-  // uncomment either softwire or wire
   #include <SoftWire.h>
   extern SoftWire Wire;
 #elif defined (USE_WIRE_LIBRARY)
@@ -18,9 +23,9 @@
 // Constructor /////////////////////////////////////////////////////////////////
 // Function that handles the creation and setup of instances
 
+//  //FIXME: need to do anything here?
 //OnbrightFlasher::OnbrightFlasher(void)
 //{
-//  //FIXME: need to do anything here?
 //}
 
 // Public Methods //////////////////////////////////////////////////////////////
@@ -32,20 +37,24 @@
 
 bool OnbrightFlasher::onbrightHandshake(void)
 {
+  // store result of i2c operation (success, ack, nack, timeout, etc.)
   byte result;
   unsigned int index;
 
+  // this is the only ack we take into account to decide success/failure
   bool gotFirstAck = false;
 
-  // indicate a write
+  // indicate an address write with no actual data write as per captured protocol
   Wire.beginTransmission(DEVICE_ADDRESS);
   result = Wire.endTransmission();
 
+  // we set maximum retries based on typical amount seen in traces
   for (index = 0; index < MAX_HANDSHAKE_RETRIES; index++)
   {
     Wire.beginTransmission(RESET_CHIP);
     result = Wire.endTransmission();
 
+    // at first we will receive nacks, however
     // if we received ack, proceed with the rest of the handshake
     if (result == 0)
     {
@@ -64,8 +73,10 @@ bool OnbrightFlasher::onbrightHandshake(void)
       //Serial.print("Result: ");
       //Serial.println(result);
 
+      // let calling function know we succeeded with handshake
       gotFirstAck = true;
 
+      // break out of loop
       index = MAX_HANDSHAKE_RETRIES;
     }
   }
@@ -113,6 +124,7 @@ byte OnbrightFlasher::eraseChip(void)
 {
   byte result;
 
+  // FIXME: this works but is timing out on ESP32 with Wire library, why?
   // erase chip
   Wire.beginTransmission(DEVICE_ADDRESS);
   Wire.write(ERASE_CHIP);
@@ -156,8 +168,6 @@ byte OnbrightFlasher::writeConfigByte(const unsigned char address, const unsigne
     Wire.write(address);
     Wire.endTransmission();
 
-    // FIXME: we send READ even though writing, need to consider what is actually happening
-    // see include file too for notes
     Wire.beginTransmission(DATA_ADDRESS);
     Wire.write(configByte);
     result = Wire.endTransmission();
