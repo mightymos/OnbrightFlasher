@@ -7,10 +7,15 @@
 #ifndef Onbright_flasher_h
 #define Onbright_flasher_h
 
-// include types & constants of Wiring core API
-//#include "WConstants.h"
+// for byte type
+#include <Arduino.h>
 
-#include <SoftWire.h>
+// uncomment only one line at a time
+#define USE_SOFTWIRE_LIBRARY
+//#define USE_WIRE_LIBRARY
+
+// advice on switching between SoftWire and Wire libraries
+// [https://arduino-craft-corner.de/index.php/2023/11/29/replacing-the-wire-library-sometimes/]
 
 // notes
 // setfuse 18 249
@@ -22,8 +27,8 @@
 #define HANDSHAKE02   0x2d
 
 // FIXME: need to rename because sometimes we send READ even when writing as per official programmer
-#define WRITE_ADDRESS 0x7e
-#define READ_ADDRESS  0x7f
+#define DEVICE_ADDRESS 0x7e
+#define DATA_ADDRESS  0x7f
 
 // chip commands
 #define ERASE_CHIP  0x03
@@ -80,17 +85,17 @@ class OnbrightFlasher
   // user-accessible "public" interface
   public:
 
-    bool eraseChip(SoftWire sw);
-    bool onbrightHandshake(SoftWire sw);
+    byte eraseChip(void);
+    byte onbrightHandshake(void);
 
-    bool readConfigByte( SoftWire sw, const unsigned char address, unsigned char &configByte);
-    bool writeConfigByte(SoftWire sw, const unsigned char address, const unsigned char configByte);
+    byte readConfigByte(const unsigned char address, unsigned char &configByte);
+    byte writeConfigByte(const unsigned char address, const unsigned char configByte);
 
-    bool readFlashByte( SoftWire sw, const unsigned int address, unsigned char &flashByte);
-    bool writeFlashByte(SoftWire sw, const unsigned int address, const unsigned char flashByte);
+    byte readFlashByte(const unsigned int address, unsigned char &flashByte);
+    byte writeFlashByte(const unsigned int address, const unsigned char flashByte);
 
-    bool readChipType(SoftWire sw, unsigned char& chipType);
-    bool resetMCU(SoftWire sw);
+    byte readChipType(unsigned char& chipType);
+    void resetMCU(void);
 
   // library-accessible "private" interface
   private:
