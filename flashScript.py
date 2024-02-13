@@ -109,7 +109,7 @@ def send_command(ser, command, expected_response, max_retries=20, retry_interval
 
 
 
-def perform_handshake(ser):
+def handshake(ser):
     try:
         if send_command(ser,"handshake","handshake"):
             if check_if_ready(ser,expected_data="cycle power to target (start with power off and then turn on)"):
@@ -294,7 +294,7 @@ class StateMachine:
         return check_if_ready(self.ser)
 
     def handshake(self):
-        return perform_handshake(self.ser)
+        return handshake(self.ser)
 
     def connect_to_OBS38S003(self):
         return connect_to_OBS38S003(self.ser)
