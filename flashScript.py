@@ -144,6 +144,10 @@ class StateMachine:
                     self.logger.error(f"Something went wrong. Process ended with {data}")
                     return False
 
+                if data == "Can try command [signature] or [idle] then [handshake] to retry":
+                    self.logger.error(f"Something went wrong. Process ended with {data}")
+                    return False
+                
                 if time.time() - start_time > timeout:
                     self.logger.error(f"Timeout reached. No valid response within {timeout} seconds. Last response was: {data}")
                     return False
