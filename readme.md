@@ -31,6 +31,15 @@ A script is being contributed that would make file upload automatic.
 |  Verify flash memory | TODO  | none | 
 
 ## Usage
+### Script Mode:
+[1]  Connect Arduino I2C/GPIO pins to microcontroller while unpowered (ok for ground to be connected on target; software or hardware I2C can be used - see projectDefs.h)  
+[2]  Upload sketch to ESP8265/ESP8266/ESP32.  
+[3]  copy desired hex file from [GitHub Releases](https://github.com/mightymos/RF-Bridge-OB38S003/releases) to script dir.
+[4]  run flashScript.py and follow instructions in cosole.
+[5] For blink.ihx red LED on Sonoff target should begin blinking with one second period  
+[6] For RF-Bridge-OB38S003_PassthroughMode.hex red LED on Sonoff should light up once at startup
+
+### Manual mode:
 [1]  Connect Arduino I2C/GPIO pins to microcontroller while unpowered (ok for ground to be connected on target; software or hardware I2C can be used - see projectDefs.h)  
 [2]  Upload sketch to ESP8265/ESP8266/ESP32.  
 [3]  Set serial monitor to "Both NL & CR" at 115200 baud  
