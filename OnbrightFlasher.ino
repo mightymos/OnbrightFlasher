@@ -1,46 +1,75 @@
 // Jonathan Armstrong
 // 8/25/2023
-// attempt to behave like the MSM9066 flasher on inexpensive arduino platform (using ESP8265 here)
+// attempt to behave like the MSM9066 flasher on inexpensive arduino platform
+// Supports ESP8265, ESP8266, and ESP32 so far
 // traces of the official programmer are found at: https://github.com/mightymos/msm9066_capture
 
+// written for onbright 8051 microcontroller
 #include "onbrightFlasher.h"
 
-//#include <Wire.h>
-#include <SoftWire.h>
-#include <AsyncDelay.h>
-
-// example
-// https://github.com/WestfW/Duino-hacks/blob/master/hvTiny28prog/hvTiny28prog.ino
+// example: https://github.com/WestfW/Duino-hacks/blob/master/hvTiny28prog/hvTiny28prog.ino
 #include "simpleParser.h"
 
+// choose whether to use SoftWire or Wire library
+#include "projectDefs.h"
+
+// SoftWire seems to work perfectly on ESP8285/ESP8286.
+// However, my ESP32 board sometimes has errors for unknown reasons.
+// ESP32 has hardware I2C which seems to work better with Wire
+// (no write errors, though erase times out but still works...).
+#if defined(USE_SOFTWIRE_LIBRARY) && defined(USE_WIRE_LIBRARY)
+  #error Please uncomment either USE_SOFTWIRE_LIBRARY or USE_WIRE_LIBRARY but not both.
+#elif defined(USE_SOFTWIRE_LIBRARY)
+  // needed for softwire timeouts
+  #include <AsyncDelay.h>
+  #include <SoftWire.h>
+#elif defined(USE_WIRE_LIBRARY)
+  #include <Wire.h>
+#endif
+
+
+// microcontroller flash size
+#define TARGET_FLASH_SIZE 8192
+
+// uncomment for more print() statements
+// however, some extra information is not very helpful to users
+//#define VERBOSE_DEBUG
+
+// not every board has an LED attached
+// and want to avoid toggling a pin that might interfere with some other function
 #if defined(LED_BUILTIN)
   #define LED_AVAILABLE
   int ledPin = LED_BUILTIN;
 #endif
 
-// not using at the moment
+// not used currently
 //#define PUSH_BUTTON_AVAILABLE
 #if defined(PUSH_BUTTON_AVAILABLE)
   // Sonoff bridge (gpio0)
   int pushButton = 0;
 #endif
 
+// choose pin definintions based on various chips/boards
 #if defined(ESP8266)
-  // various board pinouts
   // Sonoff ESP8285 pin 16 and pin 24 (gpio4 and gpio5) (or USBRXD and UXBTXD on J3 connector)
   // Wemos D1 mini pin D2 and pin D1  (gpio4 and gpio5)
   int sdaPin = 4;
   int sclPin = 5;
 #elif defined (CONFIG_IDF_TARGET_ESP32S3)
   // from [https://esp32.com/viewtopic.php?t=26127]
-  int sdaPin = 4;
-  int sclPin = 5;
+  // pinout: [https://mischianti.org/vcc-gnd-studio-yd-esp32-s3-devkitc-1-clone-high-resolution-pinout-and-specs/]
+  int sdaPin = 8;
+  int sclPin = 9;
 #elif defined(CONFIG_IDF_TARGET_ESP32)
   // ESP32-WROOM-32 38 pins
   int sdaPin = 32;
   int sclPin = 33;
 #endif
 
+#if defined(USE_SOFTWIRE_LIBRARY)
+  // use the same name "Wire" so that calls in onbrightFlasher.cpp remain the same
+  SoftWire Wire(sdaPin, sclPin);
+#endif
 
 // parses received serial strings looking for hex lines or commands
 simpleParser<100> ttycli(Serial);
@@ -74,17 +103,18 @@ static const char PROGMEM cmds[] =
  "mcureset "
   ;
 
-// using software defined i2c because some esp chips do not have dedicated i2c hardware
-SoftWire sw(sdaPin, sclPin);
+
+// 8051 microcontroller flashing protocol
 OnbrightFlasher flasher;
 
-//char swTxBuffer[1024];
-//char swRxBuffer[1024];
+// applies if we use beginTransmission()/endTransmission() style
+// which we do anyway now in order to be compatible with Wire library
+char swTxBuffer[64];
+char swRxBuffer[64];
 
 
-// FIXME: no magic numbers
 // storage for reading or writing to microcontroller flash memory
-uint8_t flashMemory[8192];
+uint8_t flashMemory[TARGET_FLASH_SIZE];
 
 // led blink task
 int togglePeriod = 1000;
@@ -107,6 +137,39 @@ unsigned char state = idle;
 
 // count and display an index to user just so they know program is still running
 int heartbeatCount = 0;
+
+// there are various posts that show this switch()
+// but have not confirmed it is correct
+void checkError(const byte error)
+{
+  // helps making parsing on PC side easier
+  Serial.print("Status: ");
+  Serial.println(error);
+
+  // specific error reason
+  switch (error) {
+    case 0:
+      Serial.println("Success");
+      break;
+    case 1:
+      Serial.println("Data too long to fit in transmit buffer");
+      break;
+    case 2:
+      Serial.println("NACK on transmit of address");
+      break;
+    case 3:
+      Serial.println("NACK on transmit of data");
+      break;
+    case 4:
+      Serial.println("Other error");
+      break;
+    case 5:
+      Serial.println("Timeout");
+      break;
+    default:
+      Serial.print("Unknown error");
+  }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // non blocking LED toggle
@@ -137,18 +200,27 @@ void setup()
   digitalWrite(ledPin, HIGH);
 #endif
 
-  //rst_info* rinfo = ESP.getResetInfoPtr();
-  //Serial.println(rinfo->reason);  
-
+#if defined(USE_SOFTWIRE_LIBRARY)
   // often esp gpio pins have internal pullups
   // so use them instead of having to add external resistors
-  sw.enablePullups(true);
+  Wire.enablePullups(true);
 
   // shorten from 100ms default so watchdog does not reset processor
-  sw.setTimeout_ms(20);
+  Wire.setTimeout_ms(20);
 
-  // done configuring software i2c
-  sw.begin();
+  // not sure if buffers are required or not but no harm?
+  Wire.setTxBuffer(swTxBuffer, sizeof(swTxBuffer));
+  Wire.setRxBuffer(swRxBuffer, sizeof(swRxBuffer));
+
+  // 10 kHz (default is 100 khz per source code)
+  //Wire.setClock(10000);
+
+  Wire.begin();
+#elif defined(USE_WIRE_LIBRARY)
+  // milliseconds
+  Wire.setTimeout(20);
+  Wire.begin(sdaPin, sclPin);
+#endif
 
   // esp32 uses different functions to initialize and control watchdog
 #if defined(ESP8266)
@@ -159,7 +231,7 @@ void setup()
 
   Serial.begin(115200);
 
-  // delay so PC side serial monitor has time to respond
+  // delay so serial monitor in the Arduino IDE has time to connect
   delay(5000);
 
   while (!Serial)
@@ -182,11 +254,16 @@ void loop()
   static uint8_t state = idle;
   static uint8_t status;
 
+  // should be 0xA for Onbright
   uint8_t chipType;
 
-  // detect acknowledgements where expected in i2c communication for basic error checking
+  // for ack, nack, etc. results
+  byte result;
+
+  // used for handshake only
   bool gotAck;
 
+  // for parsing of serial
   int clicmd;
   int16_t addr;
   uint8_t results[64];
@@ -199,7 +276,6 @@ void loop()
   ESP.wdtFeed();
 #endif
 
-
   // want similar to what getLineWait does but not blocking
   if (status != 0)
   {
@@ -210,27 +286,34 @@ void loop()
   // returns 0 until end-of-line seen.
   status = ttycli.getLine();
 
-
   if (status != 0)
   {
     clicmd = ttycli.tryihex(&addr, results);
 
-    // We have an intel hex file line?
+    // we have an intel hex file line?
     if (clicmd > 0)
     { 
       writeCount = 0;
       errorCount = 0;
+
+      // try to flash hex line
       for (int i = 0; i < clicmd; i++)
       {
-        if (flasher.writeFlashByte(sw, addr, results[i]))
+        // try to actually flash target
+        result = flasher.writeFlashByte(addr, results[i]);
+        if (result > 0)
         {
-          writeCount += 1;
-        } else {
+          checkError(result);
+
+#ifdef VERBOSE_DEBUG
           Serial.print("Write failed at addr 0x");
           Serial.print(addr, HEX);
           Serial.print(" for 0x");
           Serial.println(results[i], HEX);
+#endif
           errorCount += 1;
+        } else {
+          writeCount += 1;
         }
 
         addr++;
@@ -238,10 +321,12 @@ void loop()
 
       if (errorCount > 0)
       {
-        Serial.print("Write ERRORS: ");
+        Serial.println("Write FAILED");
+        Serial.print("Errors: ");
         Serial.println(errorCount);
-        Serial.println("Can try sending hex line again");
+        Serial.println("[can try sending hex line again]");
       } else {
+        Serial.println("Write successful");
         Serial.print("Wrote ");
         Serial.print(writeCount);
         Serial.println(" bytes");
@@ -258,58 +343,116 @@ void loop()
 
       switch (clicmd) {
         case CMD_IDLE:
-          Serial.println("Reset to idle");
-          resetToIdle = true;
+          // FIXME: a messy code organization here
+          // impacts state machine below
+          Serial.println("State changing to idle");
+          state = idle;
           break;
         case CMD_HANDSHAKE:
-          Serial.println("Reset to handshake");
-          resetToHandshake = true;
+          Serial.println("State changing to handshake");
+          Serial.println("cycle power to target (start with power off and then turn on)");
+          state = handshake;
           break;
-        case CMD_ERASE:
-          if (flasher.eraseChip(sw))
-          {
-            Serial.println("Chip erase successful");
-          } else {
-            Serial.println("Chip erase FAILed");
-          }
+        case CMD_VERSION:
+          Serial.print("Date: ");
+          Serial.print(__DATE__);
+          Serial.print(" Time: ");
+          Serial.println(__TIME__);
           break;
         case CMD_SIGNATURE:
           Serial.println("Read chip type...");
-          if (flasher.readChipType(sw, chipType))
+          result = flasher.readChipType(chipType);
+          checkError(result);
+
+          if (result > 0)
           {
-            Serial.print("Chip read: 0x");
+            Serial.println("Chip read type FAILED");
+            Serial.print("Chip type reported was: 0x");
             Serial.println(chipType, HEX);
           } else {
-            Serial.println("Chip failed to read");
+            Serial.print("Chip read: 0x");
+            Serial.println(chipType, HEX);
+          }
+          break;
+        case CMD_ERASE:
+          Serial.println("Erasing chip...");
+          result = flasher.eraseChip();
+          checkError(result);
+
+          // FIXME: this is a hack for now, because sometimes Wire timeouts
+          // even though erase worked (confirmed by reading flash byte at 0 as 255 (i.e., 0xFF))
+          if ((result != 0) && (result != 5))
+          {
+            Serial.println("Chip erase FAILED");
+          } else {
+            Serial.println("Chip erase successful");
           }
           break;
         case CMD_GET_FUSE:
           Serial.println("Get configuration byte...");
           addr = ttycli.number();
-          if (flasher.readConfigByte(sw, addr, results[0]))
+          result = flasher.readConfigByte(addr, results[0]);
+          checkError(result);
+
+          if (result > 0)
           {
-            Serial.print("Read configuration byte ");
-            Serial.print(addr);
-            Serial.print(" to be ");
-            Serial.println(results[0]);
+            Serial.println("Get configuration byte FAILED");
           } else {
-            Serial.println("Getting configuration byte FAILED");
+            Serial.print("Configuration byte at (");
+            Serial.print(addr);
+            Serial.print(") is: ");
+            Serial.println(results[0]);
+          }
+          break;
+        case CMD_READ_FLASH:
+          Serial.println("Reading flash...");
+          addr = ttycli.number();
+          result = flasher.readFlashByte(addr, results[0]);
+          checkError(result);
+
+          if (result > 0)
+          {
+            Serial.println("Read flash FAILED");
+          } else {
+            Serial.print("Flash at (");
+            Serial.print(addr);
+            Serial.print(") is: ");
+            Serial.println(results[0]);
+          }
+          break;
+        case CMD_WRITE_FLASH:
+          Serial.println("Writing flash...");
+          addr = ttycli.number();
+          results[0] = ttycli.number();
+          result = flasher.writeFlashByte(addr, results[0]);
+          checkError(result);
+
+          if (result > 0)
+          {
+            Serial.println("Write flash FAILED");
+          } else {
+            Serial.println("Wrote flash byte");
           }
           break;
         case CMD_SET_FUSE:
           Serial.println("Set configuration byte...");
           addr = ttycli.number();
           results[0] = ttycli.number();
-          if (flasher.writeConfigByte(sw, addr, results[0]))
+          result = flasher.writeConfigByte(addr, results[0]);
+          checkError(result);
+
+          if (result > 0)
           {
-            Serial.println("Wrote configuration byte");
+            Serial.println("Write configuration byte FAILED");
           } else {
-            Serial.println("Writing configuration byte FAILED");
+            // FIXME: it would be a good idea to have a read, write, verify option however
+            // or tell user to read back to verify
+            Serial.println("Wrote configuration byte");
           }
           break;
         case CMD_MCU_RESET:
           Serial.println("MCU reset...");
-          flasher.resetMCU(sw);
+          flasher.resetMCU();
           break;
         default:
           break;
@@ -320,44 +463,53 @@ void loop()
   // put your main code here, to run repeatedly:
 
   // state machine for handshake
+  // FIXME: this should probably be implemented properly, eventually
+  // [https://www.aleksandrhovhannisyan.com/blog/implementing-a-finite-state-machine-in-cpp/]
   switch(state)
   {
     case idle:
-      if(resetToHandshake)
-      {
-        resetToHandshake = false;
-        state = handshake;
-      }
       break;
     case handshake:
-      gotAck = flasher.onbrightHandshake(sw);
-      if (gotAck)
-      {
-        // there seems to be about a 20ms delay in official programmer traces
-        delay(20);
+      gotAck = flasher.onbrightHandshake();
 
-        // we must read chip type to complete handshake
-        if (flasher.readChipType(sw, chipType))
+      // cannot really depend on nack/ack to indicate success in this instance
+      // because there is a mix of expected nacks or expected acks
+      // but handshake will return true if first expected ack is received
+      if (!gotAck)
+      {
+
+#ifdef VERBOSE_DEBUG
+        Serial.print("Handshake FAILED (");
+        Serial.print(heartbeatCount);
+        Serial.println(")");
+        Serial.println("cycle power to target (start with power off and then turn on)");
+#endif
+
+        heartbeatCount += 1;
+      } else {
+        Serial.println("Handshake succeeded");
+
+        // there seems to be about a 120ms delay in official programmer traces
+        delay(120);
+
+        // we apparently read chip type after handshake
+        result = flasher.readChipType(chipType);
+        checkError(result);
+
+        if (result > 0)
         {
+          Serial.println("Chip read type FAILED");
+          Serial.print("Chip type reported was: 0x");
+          Serial.println(chipType, HEX);
+          Serial.println("Can try command [signature] or [idle] then [handshake] to retry");
+
+          state = idle;
+        } else {
           Serial.print("Chip read: 0x");
           Serial.println(chipType, HEX);
 
           state = connected;
-        } else {
-          Serial.println("Chip failed to read");
-          Serial.print("However, chip type reported was: 0x");
-          Serial.println(chipType, HEX);
-          Serial.println("Can try command [signature] or [handshake] to retry");
-
-          state = idle;
         }
-      } else {
-        Serial.print("Handshake failed (");
-        Serial.print(heartbeatCount);
-        Serial.println(")");
-        Serial.println("cycle power to target (start with power off and then turn on)");
-
-        heartbeatCount += 1;
       }
       break;
     case connected:
