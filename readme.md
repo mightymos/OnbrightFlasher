@@ -29,18 +29,30 @@ A script is being contributed that would make file upload automatic.
 |  Read flash memory | DONE  | Manually one byte at a time | 
 |  Reading/writing configuration bits | PARTIAL  | Need read-modify-write scheme | 
 |  Verify flash memory | TODO  | none | 
-
 ## Usage
-[1]  Connect Arduino I2C/GPIO pins to microcontroller while unpowered (ok for ground to be connected on target; software or hardware I2C can be used - see projectDefs.h)  
-[2]  Upload sketch to ESP8265/ESP8266/ESP32.  
-[3]  Set serial monitor to "Both NL & CR" at 115200 baud  
-[4]  Type "handshake" into serial monitor.  
-[5]  Power on target microcontroller with 3.3V.  
-[6]  Serial monitor should display 'Handshake succeeded' along with chip type as (0xA), if not follow instructions to retry  
-[7]  Type 'erase' command since microcontroller is likely protected (this erases flash, cannot be recovered!)  
-[8]  Type "setfuse 18 249"  (sets reset pin as reset functionality rather than gpio)  
-[9]  Copy-paste hex lines starting with ':' into serial monitor and hit enter key  
-[10]  Successful or failed writes should be displayed in serial monitor  
-[11] If all succcessful, type "mcureset" to reset microcontroller  
-[12] For blink.ihx red LED on Sonoff target should begin blinking with one second period  
-[13] For RF-Bridge-OB38S003_PassthroughMode.hex red LED on Sonoff should light up once at startup
+
+### Script Mode:
+
+1. Connect Arduino I2C/GPIO pins to the microcontroller while unpowered (it's okay for the ground to be connected on the target; software or hardware I2C can be used - see projectDefs.h).
+2. Upload the sketch to ESP8265/ESP8266/ESP32.
+3. Copy the desired hex file from [GitHub Releases](https://github.com/mightymos/RF-Bridge-OB38S003/releases) to the script directory.
+4. Run `flashScript.py` and follow the instructions in the console.
+5. For `blink.ihx`, the red LED on the Sonoff target should begin blinking with a one-second period.
+6. For `RF-Bridge-OB38S003_PassthroughMode.hex`, the red LED on Sonoff should light up once at startup.
+
+### Manual Mode:
+
+1. Connect Arduino I2C/GPIO pins to the microcontroller while unpowered (it's okay for the ground to be connected on the target; software or hardware I2C can be used - see projectDefs.h).
+2. Upload the sketch to ESP8265/ESP8266/ESP32.
+3. Set serial monitor to "Both NL & CR" at 115200 baud.
+4. Type "handshake" into the serial monitor.
+5. Power on the target microcontroller with 3.3V.
+6. The serial monitor should display 'Handshake succeeded' along with chip type as (0xA). If not, follow instructions to retry.
+7. Type 'erase' command since the microcontroller is likely protected (this erases flash, cannot be recovered!).
+8. Type "setfuse 18 249" (sets reset pin as reset functionality rather than GPIO).
+9. Copy-paste hex lines starting with ':' into the serial monitor and hit the enter key.
+10. Successful or failed writes should be displayed in the serial monitor.
+11. If all successful, type "mcureset" to reset the microcontroller.
+12. For `blink.ihx`, the red LED on the Sonoff target should begin blinking with a one-second period.
+13. For `RF-Bridge-OB38S003_PassthroughMode.hex`, the red LED on Sonoff should light up once at startup.
+
