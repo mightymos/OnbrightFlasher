@@ -84,7 +84,8 @@
   // use the same name "Wire" so that calls in onbrightFlasher.cpp remain the same
   SoftWire Wire(sdaPin, sclPin);
 #elif defined(USE_SOFTWAREWIRE_LIBRARY)
-  SoftwareWire Wire(sdaPin, sclPin);
+  // FIXME: enable pull ups, but not sure if we should detect clock stretching or not (i.e. last parameter)
+  SoftwareWire Wire(sdaPin, sclPin, true, false);
 #endif
 
 // parses received serial strings looking for hex lines or commands
