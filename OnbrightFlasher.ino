@@ -10,19 +10,23 @@
 // example: https://github.com/WestfW/Duino-hacks/blob/master/hvTiny28prog/hvTiny28prog.ino
 #include "simpleParser.h"
 
-// choose whether to use SoftWire or Wire library
+// chooses which i2c wire compatible library to use (e.g., software based, hardware based, etc.)
 #include "projectDefs.h"
+
 
 // SoftWire seems to work perfectly on ESP8285/ESP8286.
 // However, my ESP32 board sometimes has errors for unknown reasons.
 // ESP32 has hardware I2C which seems to work better with Wire
 // (no write errors, though erase times out but still works...).
 #if defined(USE_SOFTWIRE_LIBRARY) && defined(USE_WIRE_LIBRARY)
+  // FIXME: account for SoftwareWire library also
   #error Please uncomment either USE_SOFTWIRE_LIBRARY or USE_WIRE_LIBRARY but not both.
 #elif defined(USE_SOFTWIRE_LIBRARY)
   // needed for softwire timeouts
   #include <AsyncDelay.h>
   #include <SoftWire.h>
+#elif defined (USE_SOFTWAREWIRE_LIBRARY)
+  #include "SoftwareWire.h"
 #elif defined(USE_WIRE_LIBRARY)
   #include <Wire.h>
 #endif
@@ -64,11 +68,23 @@
   // ESP32-WROOM-32 38 pins
   int sdaPin = 32;
   int sclPin = 33;
+#elif defined (ARDUINO_AVR_MEGA2560)
+  // board macro discussed here:
+  // https://forum.arduino.cc/t/recognising-the-board-before-compiling-loading/525928
+  // Atmega2560 board pin mappings
+  // https://docs.arduino.cc/retired/hacking/hardware/PinMapping2560/
+  // should be digital pin 20 and pin 21 respectively
+  int sdaPin = PIN_WIRE_SDA;
+  int sclPin = PIN_WIRE_SDA;
+#else
+  #error Please define SDA and SCL pins
 #endif
 
 #if defined(USE_SOFTWIRE_LIBRARY)
   // use the same name "Wire" so that calls in onbrightFlasher.cpp remain the same
   SoftWire Wire(sdaPin, sclPin);
+#elif defined(USE_SOFTWAREWIRE_LIBRARY)
+  SoftwareWire Wire(sdaPin, sclPin);
 #endif
 
 // parses received serial strings looking for hex lines or commands
@@ -212,13 +228,19 @@ void setup()
   Wire.setTxBuffer(swTxBuffer, sizeof(swTxBuffer));
   Wire.setRxBuffer(swRxBuffer, sizeof(swRxBuffer));
 
+  // slowing down bus speed to hopefully avoid errors
   // 10 kHz (default is 100 khz per source code)
   //Wire.setClock(10000);
 
   Wire.begin();
-#elif defined(USE_WIRE_LIBRARY)
+#elif defined(USE_SOFTWAREWIRE_LIBRARY)
+  Wire.begin();
+#elif defined(USE_WIRE_LIBRARY)  
   // milliseconds
   Wire.setTimeout(20);
+
+  // FIXME: AVR core does not seem to support specifying pins
+  // https://github.com/arduino/ArduinoCore-avr/blob/master/libraries/Wire/src/utility/twi.c
   Wire.begin(sdaPin, sclPin);
 #endif
 

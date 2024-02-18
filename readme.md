@@ -21,6 +21,7 @@ A script is being contributed that would make file upload automatic.
 |  ESP8266 (Wemos D1 Mini) | WORKING  | none | 
 |  ESP-WROOM-32 | WORKING  | Wire works better than SoftWire, and erase works but times out... | 
 |  ESP32S3 | WORKING  | none | 
+|  Arduino Mega 2560 board | not working | reason unknown |
 
 ## Status
 | Item | Status | Note | 

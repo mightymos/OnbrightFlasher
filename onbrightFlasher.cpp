@@ -16,6 +16,9 @@
   // softwire I2C
   #include <SoftWire.h>
   extern SoftWire Wire;
+#elif defined(USE_SOFTWAREWIRE_LIBRARY)
+  #include <SoftwareWire.h>
+  extern SoftwareWire Wire;
 #elif defined (USE_WIRE_LIBRARY)
   #include <Wire.h>
 #endif
@@ -120,6 +123,9 @@ void OnbrightFlasher::resetMCU(void)
   //return result;
 }
 
+// apparently clock stretching is problematic
+// relevant here?
+// [https://learn.adafruit.com/working-with-i2c-devices/clock-stretching]
 byte OnbrightFlasher::eraseChip(void)
 {
   byte result;
