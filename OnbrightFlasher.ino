@@ -40,10 +40,11 @@
 //#define VERBOSE_DEBUG
 
 // not every board has an LED attached
-// and want to avoid toggling a pin that might interfere with some other function
+// and want to avoid toggling a pin on one board that might interfere with some other function on another board
 #if defined(LED_BUILTIN)
-  #define LED_AVAILABLE
   int ledPin = LED_BUILTIN;
+#else
+  #warning LED_BUILTIN not defined so no LED will blink to show board is alive
 #endif
 
 // not used currently
@@ -54,30 +55,30 @@
 #endif
 
 // choose pin definintions based on various chips/boards
-#if defined(ESP8266)
+#if defined(PIN_WIRE_SDA) && defined(PIN_WIRE_SCL)
   // Sonoff ESP8285 pin 16 and pin 24 (gpio4 and gpio5) (or USBRXD and UXBTXD on J3 connector)
+
+  // ESP8266
   // Wemos D1 mini pin D2 and pin D1  (gpio4 and gpio5)
-  int sdaPin = 4;
-  int sclPin = 5;
-#elif defined (CONFIG_IDF_TARGET_ESP32S3)
+
+  // CONFIG_IDF_TARGET_ESP32S3
   // from [https://esp32.com/viewtopic.php?t=26127]
   // pinout: [https://mischianti.org/vcc-gnd-studio-yd-esp32-s3-devkitc-1-clone-high-resolution-pinout-and-specs/]
-  int sdaPin = 8;
-  int sclPin = 9;
-#elif defined(CONFIG_IDF_TARGET_ESP32)
-  // ESP32-WROOM-32 38 pins
-  int sdaPin = 32;
-  int sclPin = 33;
-#elif defined (ARDUINO_AVR_MEGA2560)
-  // board macro discussed here:
-  // https://forum.arduino.cc/t/recognising-the-board-before-compiling-loading/525928
+
+  // CONFIG_IDF_TARGET_ESP32
+  // ESP32-WROOM-32 38 pins (sda = 32, scl = 33)
+
+  // ARDUINO_AVR_MEGA2560
   // Atmega2560 board pin mappings
   // https://docs.arduino.cc/retired/hacking/hardware/PinMapping2560/
   // should be digital pin 20 and pin 21 respectively
+  // board macro discussed here:
+  // https://forum.arduino.cc/t/recognising-the-board-before-compiling-loading/525928
+  
   int sdaPin = PIN_WIRE_SDA;
-  int sclPin = PIN_WIRE_SDA;
+  int sclPin = PIN_WIRE_SCL;
 #else
-  #error Please define SDA and SCL pins
+  #error Please specify SDA pin and SCL pin for your board
 #endif
 
 #if defined(USE_SOFTWIRE_LIBRARY)
@@ -200,7 +201,7 @@ void toggleLED_nb(void)
     if (now - lastToggle > (unsigned int) (togglePeriod / 2) )
     {
 
-#if defined(LED_AVAILABLE)
+#if defined(LED_BUILTIN)
         // toggle
         digitalWrite(ledPin, !digitalRead(ledPin));
 #endif
@@ -212,7 +213,7 @@ void toggleLED_nb(void)
 void setup()
 {
 
-#if defined(LED_AVAILABLE)
+#if defined(LED_BUILTIN)
   pinMode(ledPin, OUTPUT);
   digitalWrite(ledPin, HIGH);
 #endif
@@ -252,6 +253,7 @@ void setup()
   ESP.wdtDisable();
 #endif
 
+  // the boot text on some esp might be garbled due to other baud rates, but 115200 should be easily achievable afterward
   Serial.begin(115200);
 
   // delay so serial monitor in the Arduino IDE has time to connect
@@ -264,10 +266,15 @@ void setup()
       // otherwise the shell can quietly drop output.
   }
 
+  Serial.println(" ");
   Serial.println(F("Ready."));
+  Serial.print("Date: ");
+  Serial.print(__DATE__);
+  Serial.print(" Time: ");
+  Serial.println(__TIME__);
   Serial.println(F("Entering [idle] state."));
   Serial.println(F("Type [handshake] to attempt connection to target."));
-  Serial.println(F("Type [idle] and then [handshake] to start from the beginning"));
+  Serial.println(F("Type [idle] and then [handshake] to retry from the beginning"));
 }
 
 
@@ -543,6 +550,6 @@ void loop()
   }
 
   // periodic led blink to show board is alive
-  // this will only actually toggle pin if LED_AVAILABLE is defined
+  // this will only actually toggle pin if LED_BUILTIN is defined
   toggleLED_nb();
 }
