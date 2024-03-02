@@ -22,7 +22,7 @@ A script is being contributed that would make file upload automatic.
 |  ESP8266 (e.g. Wemos D1 Mini) | WORKING  | none | 
 |  ESP-WROOM-32 | WORKING  | none | 
 |  ESP32S3 | WORKING  | none | 
-|  Arduino Mega 2560 board | not working | reason unknown |
+|  Arduino Mega 2560 board | WORKING | 5V to 3.3V level translation recommended |
 
 ## Status
 | Item | Status | Note | 
