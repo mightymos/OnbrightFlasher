@@ -52,12 +52,13 @@ A script is being contributed that would make file upload automatic.
 1. Set serial monitor to "Both NL & CR" at 115200 baud.
 2. Type "handshake" into the serial monitor.
 3. Power on the target microcontroller with 3.3V.
-4. The serial monitor should display 'Handshake succeeded' along with chip type as (0xA). If not, follow instructions to retry.
-5. Type 'erase' command since the microcontroller is likely protected (this erases flash, cannot be recovered!).
-6. Type "setfuse 18 249" (sets reset pin as reset functionality rather than GPIO).
-7. Copy-paste hex lines starting with ':' into the serial monitor and hit the enter key.
-8. Successful or failed writes should be displayed in the serial monitor.
-9. If all successful, type "mcureset" to reset the microcontroller.
-10. For `blink.ihx`, the red LED on the Sonoff target should begin blinking with a one-second period.
-11. For `RF-Bridge-OB38S003_PassthroughMode.hex`, the red LED on Sonoff should light up once at startup.
+4. If chip is protected, chip read will appear to fail due to NACK but chip type reported should be (0xA). Proceed to 'erase' step to unprotect chip.
+5. If chip is unprotected, serial monitor should display 'Handshake succeeded' along with chip type as (0xA). If not, follow instructions to retry.
+6. Type 'erase' command since the microcontroller is likely protected (this erases flash, cannot be recovered!).
+7. Type "setfuse 18 249" (sets reset pin as reset functionality rather than GPIO).
+8. Copy-paste hex lines starting with ':' into the serial monitor and hit the enter key.
+9. Successful or failed writes should be displayed in the serial monitor.
+10. If all successful, type "mcureset" to reset the microcontroller.
+11. For `blink.ihx`, the red LED on the Sonoff target should begin blinking with a one-second period.
+12. For `RF-Bridge-OB38S003_PassthroughMode.hex`, the red LED on Sonoff should light up once at startup.
 
