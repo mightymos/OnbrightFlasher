@@ -91,6 +91,8 @@ class OnbrightFlasher
     byte readFlashByte(const unsigned int address, unsigned char &flashByte);
     byte writeFlashByte(const unsigned int address, const unsigned char flashByte);
 
+    byte writeFlashBlock(const unsigned int flashAddress, unsigned char* flashbyte, const unsigned char length);
+
     byte readChipType(unsigned char& chipType);
     void resetMCU(void);
 

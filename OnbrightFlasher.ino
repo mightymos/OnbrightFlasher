@@ -13,6 +13,44 @@
 // chooses which i2c wire compatible library to use (e.g., software based, hardware based, etc.)
 #include "projectDefs.h"
 
+// same intel hex parser used by Tasmota (originally from c2_prog_wifi project)
+#include "ihx.h"
+
+// https://github.com/G6EJD/ESP32-8266-File-Upload
+// https://tttapa.github.io/ESP8266/Chap12%20-%20Uploading%20to%20Server.html
+// https://randomnerdtutorials.com/install-esp8266-nodemcu-littlefs-arduino/
+#ifdef ESP8266
+  #include <ESP8266WiFi.h>       // Built-in
+  #include <ESP8266WiFiMulti.h>  // Built-in
+  #include <ESP8266WebServer.h>  // Built-in
+  #include <ESP8266mDNS.h>
+#else
+  #include <WiFi.h>              // Built-in
+  #include <WiFiMulti.h>         // Built-in
+  #include <ESP32WebServer.h>    // https://github.com/Pedroalbuquerque/ESP32WebServer download and place in your Libraries folder
+  #include <ESPmDNS.h>
+  #include "FS.h"
+#endif
+
+// html and wifi credentials
+#include "Network.h"
+#include "Sys_Variables.h"
+#include "CSS.h"
+
+// we do not have nor need an external sd card
+//#include <SD.h> 
+//#include <SPI.h>
+
+// LittleFS
+#include <LittleFS.h>
+
+#ifdef ESP8266
+  ESP8266WiFiMulti wifiMulti; 
+  ESP8266WebServer server(80);
+#else
+  WiFiMulti wifiMulti;
+  ESP32WebServer server(80);
+#endif
 
 // SoftWire seems to work perfectly on ESP8285/ESP8286.
 // However, my ESP32 board sometimes has errors for unknown reasons.
@@ -119,6 +157,8 @@ static const char PROGMEM cmds[] =
   "? "
 #define CMD_MCU_RESET 11
  "mcureset "
+#define FLASH_HEX 12
+ "flashhex "
   ;
 
 
@@ -130,9 +170,12 @@ OnbrightFlasher flasher;
 char swTxBuffer[64];
 char swRxBuffer[64];
 
+// littlefs
+File hexFile;
+size_t filesize;
 
-// storage for reading or writing to microcontroller flash memory
-uint8_t flashMemory[TARGET_FLASH_SIZE];
+uint8_t data[8192];
+uint32_t size;
 
 // led blink task
 int togglePeriod = 1000;
@@ -187,6 +230,79 @@ void checkError(const byte error)
     default:
       Serial.print("Unknown error");
   }
+}
+
+// https://github.com/arendst/Tasmota/blob/master/tasmota/tasmota_xdrv_driver/xdrv_06_snfbridge.ino
+// requires a hex file so on PC side can do: packihx foo.ihx > foo.hex
+uint32_t rf_decode_and_write(uint8_t *record, size_t size) {
+  uint8_t err = ihx_decode(record, size);
+  if (err != IHX_SUCCESS)
+  {
+    // Failed to decode RF firmware
+    return 13;
+  }
+
+  ihx_t *h = (ihx_t *) record;
+  if (h->record_type == IHX_RT_DATA)
+  {
+    int retries = 5;
+    uint16_t address = h->address_high * 0x100 + h->address_low;
+
+    // DEBUG:
+    //Serial.print("Address: ");
+    //Serial.println(address, HEX);
+
+    do {
+    //  err = c2_programming_init(C2_DEVID_EFM8BB1);
+      err = flasher.writeFlashBlock(address, h->data, h->len);
+    } while (err > 0 && retries--);
+  } else if (h->record_type == IHX_RT_END_OF_FILE) {
+    // RF firmware upgrade done, restarting RF chip
+    flasher.resetMCU();
+  }
+
+  if (err > 0) {
+    return 12;
+  }  // Failed to write to RF chip
+
+  return 0;
+}
+
+uint32_t rf_search_and_write(uint8_t *data, size_t size) {
+  // Binary contains a set of commands, decode and program each one
+  uint8_t buf[64];
+  uint8_t* p_data = data;
+  uint32_t addr = 0;
+  uint32_t rec_end;
+  uint32_t rec_start;
+  uint32_t rec_size;
+  uint32_t err;
+
+  while (addr < size) {
+    memcpy(buf, p_data, sizeof(buf));  // Must load flash using memcpy on 4-byte boundary
+
+    // Find starts and ends of commands
+    for (rec_start = 0; rec_start < 8; rec_start++) {
+      if (':' == buf[rec_start]) { break; }
+    }
+    if (rec_start > 7) { return 8; }  // File invalid - RF Remnant data did not start with a start token
+    for (rec_end = rec_start; rec_end < sizeof(buf); rec_end++) {
+      if ('\n' == buf[rec_end]) { break; }
+    }
+    if (rec_end == sizeof(buf)) { return 9; }  // File too large - Failed to decode RF firmware
+    rec_size = rec_end - rec_start;
+
+//    AddLog(LOG_LEVEL_DEBUG, PSTR("DBG: %*_H"), rec_size, (uint8_t*)&buf + rec_start);
+
+    err = rf_decode_and_write(buf + rec_start, rec_size);
+    if (err != 0) { return err; }
+
+    addr += rec_size +1;
+    p_data += (rec_end & 0xFFFC);  // Stay on 4-byte boundary
+    delay(0);
+  }
+  // Buffer was perfectly aligned, start and end found without any remaining trailing characters
+  return 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -275,6 +391,60 @@ void setup()
   Serial.println(F("Entering [idle] state."));
   Serial.println(F("Type [handshake] to attempt connection to target."));
   Serial.println(F("Type [idle] and then [handshake] to retry from the beginning"));
+
+  if (!WiFi.config(local_IP, gateway, subnet, dns))
+  {
+    Serial.println("WiFi STATION Failed to configure Correctly"); 
+  } 
+
+  // add Wi-Fi networks you want to connect to, it connects strongest to weakest
+  wifiMulti.addAP(ssid_1, password_1);
+
+  
+  Serial.println("Connecting ...");
+
+  // Wait for the Wi-Fi to connect: scan for Wi-Fi networks, and connect to the strongest of the networks above
+  while (wifiMulti.run() != WL_CONNECTED)
+  {
+
+#if defined(ESP8266)
+  // clear watchdog to avoid reset if using an ESP8265/8266
+  ESP.wdtFeed();
+#endif
+
+    delay(250);
+    Serial.print('.');
+  }
+
+  // Report which SSID and IP is in use
+  Serial.println("\nConnected to "+WiFi.SSID()+" Use IP address: "+WiFi.localIP().toString());
+
+  // The logical name http://fileserver.local will also access the device if you have 'Bonjour' running or your system supports multicast dns
+  // Set your preferred server name, if you use "myserver" the address would be http://myserver.local/
+  if (!MDNS.begin(servername))
+  {
+    Serial.println(F("Error setting up MDNS responder!")); 
+    ESP.restart(); 
+  } 
+
+
+
+  if(!LittleFS.begin()){
+    Serial.println("An Error has occurred while mounting LittleFS");
+    return;
+  }
+
+  // 
+  //----------------------------------------------------------------------   
+  ///////////////////////////// Server Commands 
+  server.on("/",         HomePage);
+  server.on("/download", File_Download);
+  server.on("/upload",   File_Upload);
+  server.on("/fupload",  HTTP_POST,[](){ server.send(200);}, handleFileUpload);
+  ///////////////////////////// End of Request commands
+
+  server.begin();
+  Serial.println("HTTP server started");
 }
 
 
@@ -305,6 +475,9 @@ void loop()
   // clear watchdog to avoid reset if using an ESP8265/8266
   ESP.wdtFeed();
 #endif
+
+  // Listen for client connections
+  server.handleClient();
 
   // want similar to what getLineWait does but not blocking
   if (status != 0)
@@ -484,6 +657,31 @@ void loop()
           Serial.println("MCU reset...");
           flasher.resetMCU();
           break;
+        case FLASH_HEX:
+        {
+          Serial.println("Flashing hex...");
+          hexFile = LittleFS.open("firmware.hex", "r");
+
+          if (!hexFile) {
+              Serial.println("file open failed");
+          } else {
+
+            //the size of the file in bytes 
+            filesize = hexFile.size();
+
+            Serial.print("File size: ");
+            Serial.println(filesize);
+
+            uint8_t filearray[filesize + 1];
+            hexFile.read(filearray, sizeof(filearray));  
+            hexFile.close();
+
+            uint32_t result = rf_search_and_write(filearray, filesize);
+            Serial.print("rf_search_and_write(): ");
+            Serial.println(result);
+          }
+          break;
+        }
         default:
           break;
       }
@@ -552,4 +750,165 @@ void loop()
   // periodic led blink to show board is alive
   // this will only actually toggle pin if LED_BUILTIN is defined
   toggleLED_nb();
+}
+
+// All supporting functions from here...
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+void HomePage(){
+  SendHTML_Header();
+  webpage += F("<a href='/download'><button>Download</button></a>");
+  webpage += F("<a href='/upload'><button>Upload</button></a>");
+  append_page_footer();
+  SendHTML_Content();
+  SendHTML_Stop(); // Stop is needed because no content length was sent
+}
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+void File_Download(){ // This gets called twice, the first pass selects the input, the second pass then processes the command line arguments
+  if (server.args() > 0 ) { // Arguments were received
+    if (server.hasArg("download"))
+      FS_file_download(server.arg(0));
+  }
+  else SelectInput("Enter filename to download","download","download");
+}
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+void FS_file_download(String filename){
+
+    File download = LittleFS.open("/"+filename, "r");
+
+    if (download) {
+      server.sendHeader("Content-Type", "text/text");
+      server.sendHeader("Content-Disposition", "attachment; filename="+filename);
+      server.sendHeader("Connection", "close");
+      server.streamFile(download, "application/octet-stream");
+      download.close();
+    } else ReportFileNotPresent("download"); 
+}
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+void File_Upload(){
+  append_page_header();
+  webpage += F("<h3>Select File to Upload</h3>"); 
+  webpage += F("<FORM action='/fupload' method='post' enctype='multipart/form-data'>");
+  webpage += F("<input class='buttons' style='width:40%' type='file' name='fupload' id = 'fupload' value=''><br>");
+  webpage += F("<br><button class='buttons' style='width:10%' type='submit'>Upload File</button><br>");
+  webpage += F("<a href='/'>[Back]</a><br><br>");
+  append_page_footer();
+  server.send(200, "text/html",webpage);
+}
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+File UploadFile; 
+
+// upload a new file to the Filing system
+void handleFileUpload()
+{
+  // See https://github.com/esp8266/Arduino/tree/master/libraries/ESP8266WebServer/srcv
+  // For further information on 'status' structure, there are other reasons such as a failed transfer that could be used
+  HTTPUpload& uploadfile = server.upload();
+
+  if(uploadfile.status == UPLOAD_FILE_START)
+  {
+    String filename = uploadfile.filename;
+    if(!filename.startsWith("/")) filename = "/"+filename;
+    Serial.print("Upload File Name: "); Serial.println(filename);
+    // Remove a previous version, otherwise data is appended the file again
+    LittleFS.remove(filename);
+    // Open the file for writing in SPIFFS (create it, if doesn't exist)
+    UploadFile = LittleFS.open(filename, "w");
+    filename = String();
+  }
+  else if (uploadfile.status == UPLOAD_FILE_WRITE)
+  {
+    // Write the received bytes to the file
+    if(UploadFile)
+      UploadFile.write(uploadfile.buf, uploadfile.currentSize);
+  } 
+  else if (uploadfile.status == UPLOAD_FILE_END)
+  {
+    // If the file was successfully created
+    if(UploadFile)
+    {                                    
+      UploadFile.close();   // Close the file again
+      Serial.print("Upload Size: ");
+      Serial.println(uploadfile.totalSize);
+      webpage = "";
+      append_page_header();
+      webpage += F("<h3>File was successfully uploaded</h3>"); 
+      webpage += F("<h2>Uploaded File Name: "); webpage += uploadfile.filename+"</h2>";
+      webpage += F("<h2>File Size: "); webpage += file_size(uploadfile.totalSize) + "</h2><br>"; 
+      append_page_footer();
+      server.send(200,"text/html",webpage);
+    } 
+    else
+    {
+      ReportCouldNotCreateFile("upload");
+    }
+  }
+}
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+void SendHTML_Header(){
+  server.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate"); 
+  server.sendHeader("Pragma", "no-cache"); 
+  server.sendHeader("Expires", "-1"); 
+  server.setContentLength(CONTENT_LENGTH_UNKNOWN); 
+  server.send(200, "text/html", ""); // Empty content inhibits Content-length header so we have to close the socket ourselves. 
+  append_page_header();
+  server.sendContent(webpage);
+  webpage = "";
+}
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+void SendHTML_Content(){
+  server.sendContent(webpage);
+  webpage = "";
+}
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+void SendHTML_Stop(){
+  server.sendContent("");
+  server.client().stop(); // Stop is needed because no content length was sent
+}
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+void SelectInput(String heading1, String command, String arg_calling_name){
+  SendHTML_Header();
+  webpage += F("<h3>"); webpage += heading1 + "</h3>"; 
+  webpage += F("<FORM action='/"); webpage += command + "' method='post'>"; // Must match the calling argument e.g. '/chart' calls '/chart' after selection but with arguments!
+  webpage += F("<input type='text' name='"); webpage += arg_calling_name; webpage += F("' value=''><br>");
+  webpage += F("<type='submit' name='"); webpage += arg_calling_name; webpage += F("' value=''><br>");
+  webpage += F("<a href='/'>[Back]</a>");
+  append_page_footer();
+  SendHTML_Content();
+  SendHTML_Stop();
+}
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+void ReportSDNotPresent(){
+  SendHTML_Header();
+  webpage += F("<h3>No SD Card present</h3>"); 
+  webpage += F("<a href='/'>[Back]</a><br><br>");
+  append_page_footer();
+  SendHTML_Content();
+  SendHTML_Stop();
+}
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+void ReportFileNotPresent(String target){
+  SendHTML_Header();
+  webpage += F("<h3>File does not exist</h3>"); 
+  webpage += F("<a href='/"); webpage += target + "'>[Back]</a><br><br>";
+  append_page_footer();
+  SendHTML_Content();
+  SendHTML_Stop();
+}
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+void ReportCouldNotCreateFile(String target){
+  SendHTML_Header();
+  webpage += F("<h3>Could Not Create Uploaded File (write-protected?)</h3>"); 
+  webpage += F("<a href='/"); webpage += target + "'>[Back]</a><br><br>";
+  append_page_footer();
+  SendHTML_Content();
+  SendHTML_Stop();
+}
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+String file_size(int bytes){
+  String fsize = "";
+  if (bytes < 1024)                 fsize = String(bytes)+" B";
+  else if(bytes < (1024*1024))      fsize = String(bytes/1024.0,3)+" KB";
+  else if(bytes < (1024*1024*1024)) fsize = String(bytes/1024.0/1024.0,3)+" MB";
+  else                              fsize = String(bytes/1024.0/1024.0/1024.0,3)+" GB";
+  return fsize;
 }

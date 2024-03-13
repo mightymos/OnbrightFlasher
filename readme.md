@@ -62,3 +62,10 @@ A script is being contributed that would make file upload automatic.
 11. For `blink.ihx`, the red LED on the Sonoff target should begin blinking with a one-second period.
 12. For `RF-Bridge-OB38S003_PassthroughMode.hex`, the red LED on Sonoff should light up once at startup.
 
+### Web Upload Mode:
+1. Set gateway, dns, local IP, SSID and password in Network.h
+2. Upload sketch
+3. Follow the Manual Mode handshake instructions but skip sending hex lines over serial
+4. Navigate to 192.168.10.150 in browser
+5. Upload "firmware.hex" (must be this exact file name and in hex format, ihx format will not work)
+6. Type "flashhex" in serial monitor
