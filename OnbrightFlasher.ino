@@ -33,6 +33,7 @@
 #endif
 
 // html and wifi credentials
+#include "secrets.h"
 #include "Network.h"
 #include "Sys_Variables.h"
 #include "CSS.h"
@@ -71,7 +72,7 @@
 
 
 // microcontroller flash size
-#define TARGET_FLASH_SIZE 8192
+//#define TARGET_FLASH_SIZE 8192
 
 // uncomment for more print() statements
 // however, some extra information is not very helpful to users
@@ -92,27 +93,9 @@
   int pushButton = 0;
 #endif
 
-// choose pin definintions based on various chips/boards
+// 
 #if defined(PIN_WIRE_SDA) && defined(PIN_WIRE_SCL)
-  // Sonoff ESP8285 pin 16 and pin 24 (gpio4 and gpio5) (or USBRXD and UXBTXD on J3 connector)
-
-  // ESP8266
-  // Wemos D1 mini pin D2 and pin D1  (gpio4 and gpio5)
-
-  // CONFIG_IDF_TARGET_ESP32S3
-  // from [https://esp32.com/viewtopic.php?t=26127]
-  // pinout: [https://mischianti.org/vcc-gnd-studio-yd-esp32-s3-devkitc-1-clone-high-resolution-pinout-and-specs/]
-
-  // CONFIG_IDF_TARGET_ESP32
-  // ESP32-WROOM-32 38 pins (sda = 32, scl = 33)
-
-  // ARDUINO_AVR_MEGA2560
-  // Atmega2560 board pin mappings
-  // https://docs.arduino.cc/retired/hacking/hardware/PinMapping2560/
-  // should be digital pin 20 and pin 21 respectively
-  // board macro discussed here:
-  // https://forum.arduino.cc/t/recognising-the-board-before-compiling-loading/525928
-  
+  // example: Sonoff ESP8285 pin 16 and pin 24 (gpio4 and gpio5) (or USBRXD and UXBTXD on J3 connector)
   int sdaPin = PIN_WIRE_SDA;
   int sclPin = PIN_WIRE_SCL;
 #else
@@ -174,7 +157,7 @@ char swRxBuffer[64];
 File hexFile;
 size_t filesize;
 
-uint8_t data[8192];
+//uint8_t data[8192];
 uint32_t size;
 
 // led blink task
@@ -314,6 +297,8 @@ uint32_t rf_search_and_write(uint8_t *data, size_t size) {
 //    Serial.println(addr);
 
 #if defined(ESP8266)
+    // FIXME: no idea what happens to wifi while we are busy here
+    // this seems like a nonideal hack
     // clear watchdog to avoid reset if using an ESP8265/8266
     ESP.wdtFeed();
 #endif
@@ -449,7 +434,7 @@ void setup()
   } 
 
 
-
+  // filesystem is used to store upload firmware files to flash
   if(!LittleFS.begin()){
     Serial.println("An Error has occurred while mounting LittleFS");
     return;
