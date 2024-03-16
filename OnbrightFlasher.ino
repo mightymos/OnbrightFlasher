@@ -180,6 +180,7 @@ uint32_t size;
 // led blink task
 int togglePeriod = 1000;
 
+uint8_t filearray[32767];
 
 // global to reset handshake mode
 bool resetToIdle      = false;
@@ -249,7 +250,7 @@ uint32_t rf_decode_and_write(uint8_t *record, size_t size) {
     uint16_t address = h->address_high * 0x100 + h->address_low;
 
     // DEBUG:
-    //Serial.print("Address: ");
+    //Serial.print("Addr: ");
     //Serial.println(address, HEX);
 
     do {
@@ -285,22 +286,48 @@ uint32_t rf_search_and_write(uint8_t *data, size_t size) {
     for (rec_start = 0; rec_start < 8; rec_start++) {
       if (':' == buf[rec_start]) { break; }
     }
-    if (rec_start > 7) { return 8; }  // File invalid - RF Remnant data did not start with a start token
-    for (rec_end = rec_start; rec_end < sizeof(buf); rec_end++) {
-      if ('\n' == buf[rec_end]) { break; }
+
+    // Record invalid - RF Remnant data did not start with a start token
+    if (rec_start > 7) {
+      return 8;
     }
-    if (rec_end == sizeof(buf)) { return 9; }  // File too large - Failed to decode RF firmware
+
+    for (rec_end = rec_start; rec_end < sizeof(buf); rec_end++)
+    {
+      // FIXME: should be made to support Windows style line endings (i.e., \r\n)
+      // otherwise record will be deemed too large
+      // or use dos2unix on PC side
+      if ('\n' == buf[rec_end]) {
+        break;
+      }
+    }
+
+    // Record too large - Failed to decode RF firmware
+    if (rec_end == sizeof(buf)) {
+      return 9;
+    }
+
     rec_size = rec_end - rec_start;
 
 //    AddLog(LOG_LEVEL_DEBUG, PSTR("DBG: %*_H"), rec_size, (uint8_t*)&buf + rec_start);
+//    Serial.print("Parsing record with address: ");
+//    Serial.println(addr);
+
+#if defined(ESP8266)
+    // clear watchdog to avoid reset if using an ESP8265/8266
+    ESP.wdtFeed();
+#endif
 
     err = rf_decode_and_write(buf + rec_start, rec_size);
-    if (err != 0) { return err; }
+    if (err != 0) {
+      return err;
+    }
 
     addr += rec_size +1;
     p_data += (rec_end & 0xFFFC);  // Stay on 4-byte boundary
     delay(0);
   }
+
   // Buffer was perfectly aligned, start and end found without any remaining trailing characters
   return 0;
 }
@@ -406,13 +433,7 @@ void setup()
   // Wait for the Wi-Fi to connect: scan for Wi-Fi networks, and connect to the strongest of the networks above
   while (wifiMulti.run() != WL_CONNECTED)
   {
-
-#if defined(ESP8266)
-  // clear watchdog to avoid reset if using an ESP8265/8266
-  ESP.wdtFeed();
-#endif
-
-    delay(250);
+    delay(50);
     Serial.print('.');
   }
 
@@ -659,7 +680,7 @@ void loop()
           break;
         case FLASH_HEX:
         {
-          Serial.println("Flashing hex...");
+          Serial.println("Opening hex file");
           hexFile = LittleFS.open("firmware.hex", "r");
 
           if (!hexFile) {
@@ -672,12 +693,19 @@ void loop()
             Serial.print("File size: ");
             Serial.println(filesize);
 
-            uint8_t filearray[filesize + 1];
-            hexFile.read(filearray, sizeof(filearray));  
+            Serial.print("Buffer size: ");
+            Serial.println(sizeof(filearray));
+
+            Serial.println("Reading file...");
+            hexFile.read(filearray, filesize);
+
+            Serial.println("Closing file...");
             hexFile.close();
 
+            Serial.println("Starting hex parsing...");
             uint32_t result = rf_search_and_write(filearray, filesize);
-            Serial.print("rf_search_and_write(): ");
+
+            Serial.print("rf_search_and_write() returned: ");
             Serial.println(result);
           }
           break;
