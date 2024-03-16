@@ -163,6 +163,8 @@ uint32_t size;
 // led blink task
 int togglePeriod = 1000;
 
+// FIXME: no magic numbers
+// stores file in ram read from LittleFS filesystem
 uint8_t filearray[32767];
 
 // global to reset handshake mode
