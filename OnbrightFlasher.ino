@@ -72,7 +72,7 @@
 
 
 // microcontroller flash size
-//#define TARGET_FLASH_SIZE 8192
+#define TARGET_FLASH_SIZE 8192
 
 // uncomment for more print() statements
 // however, some extra information is not very helpful to users
@@ -140,8 +140,12 @@ static const char PROGMEM cmds[] =
   "? "
 #define CMD_MCU_RESET 11
  "mcureset "
-#define FLASH_HEX 12
+#define CMD_FLASH_HEX 12
  "flashhex "
+#define CMD_READ_HEX 13
+  "readhex "
+#define CMD_READ_CONFIGS 14
+  "readconfigs "
   ;
 
 
@@ -157,15 +161,23 @@ char swRxBuffer[64];
 File hexFile;
 size_t filesize;
 
-//uint8_t data[8192];
-uint32_t size;
+//uint8_t flashMirror[TARGET_FLASH_SIZE];
+//uint32_t size;
+uint8_t configBytes[255];
 
 // led blink task
 int togglePeriod = 1000;
 
 // FIXME: no magic numbers
 // stores file in ram read from LittleFS filesystem
-uint8_t filearray[32767];
+uint8_t fileArray[32767];
+
+// the stock programmer allowed choosing initial value of either 0x00 or 0xFF
+// so this needs to be supported and accounted for as well - i.e., checksum will be different in either case
+// the checksum can be compared to checksum calculated by loading hex file into SMAP AC MSM 9066 PC software
+// FIXME: how do they erase to either 0x00 or 0xFF instead of just NOP?
+uint32_t writeChecksum;
+uint32_t readChecksum;
 
 // global to reset handshake mode
 bool resetToIdle      = false;
@@ -220,11 +232,14 @@ void checkError(const byte error)
 
 // https://github.com/arendst/Tasmota/blob/master/tasmota/tasmota_xdrv_driver/xdrv_06_snfbridge.ino
 // requires a hex file so on PC side can do: packihx foo.ihx > foo.hex
-uint32_t rf_decode_and_write(uint8_t *record, size_t size) {
+uint32_t rf_decode_and_write(uint8_t *record, size_t size)
+{
   uint8_t err = ihx_decode(record, size);
+  uint8_t index;
+
   if (err != IHX_SUCCESS)
   {
-    // Failed to decode RF firmware
+    // Failed to decode mcu firmware
     return 13;
   }
 
@@ -234,22 +249,30 @@ uint32_t rf_decode_and_write(uint8_t *record, size_t size) {
     int retries = 5;
     uint16_t address = h->address_high * 0x100 + h->address_low;
 
-    // DEBUG:
-    //Serial.print("Addr: ");
-    //Serial.println(address, HEX);
+    // keep running sum of bytes written
+    while (index < h->len)
+    {
+      // we subtract from erased value
+      writeChecksum -= 0xFF - h->data[index];
+      index++;
+    }
 
+    // try actual flash
     do {
-    //  err = c2_programming_init(C2_DEVID_EFM8BB1);
+      // err = c2_programming_init(C2_DEVID_EFM8BB1);
+      // handshake needs to have happened prior to write attempts because it requires power cycle
+      // in contrast, EFM8BB1 was able to reset by holding a clock(?) line for a long period of time
       err = flasher.writeFlashBlock(address, h->data, h->len);
     } while (err > 0 && retries--);
   } else if (h->record_type == IHX_RT_END_OF_FILE) {
-    // RF firmware upgrade done, restarting RF chip
+    // mcu firmware upgrade done, restarting RF chip
     flasher.resetMCU();
   }
 
+  // Failed to write to mcu chip
   if (err > 0) {
     return 12;
-  }  // Failed to write to RF chip
+  }
 
   return 0;
 }
@@ -263,9 +286,14 @@ uint32_t rf_search_and_write(uint8_t *data, size_t size) {
   uint32_t rec_start;
   uint32_t rec_size;
   uint32_t err;
+  uint8_t index;
+
+  // 8192 * 0xFF in other words checksum of an erased chip (0x1FE000)
+  writeChecksum = 2088960;
 
   while (addr < size) {
-    memcpy(buf, p_data, sizeof(buf));  // Must load flash using memcpy on 4-byte boundary
+    // Must load flash using memcpy on 4-byte boundary
+    memcpy(buf, p_data, sizeof(buf));
 
     // Find starts and ends of commands
     for (rec_start = 0; rec_start < 8; rec_start++) {
@@ -665,7 +693,7 @@ void loop()
           Serial.println("MCU reset...");
           flasher.resetMCU();
           break;
-        case FLASH_HEX:
+        case CMD_FLASH_HEX:
         {
           Serial.println("Opening hex file");
           hexFile = LittleFS.open("firmware.hex", "r");
@@ -681,21 +709,57 @@ void loop()
             Serial.println(filesize);
 
             Serial.print("Buffer size: ");
-            Serial.println(sizeof(filearray));
+            Serial.println(sizeof(fileArray));
 
             Serial.println("Reading file...");
-            hexFile.read(filearray, filesize);
+            hexFile.read(fileArray, filesize);
 
             Serial.println("Closing file...");
             hexFile.close();
 
             Serial.println("Starting hex parsing...");
-            uint32_t result = rf_search_and_write(filearray, filesize);
+            uint32_t result = rf_search_and_write(fileArray, filesize);
 
             Serial.print("rf_search_and_write() returned: ");
             Serial.println(result);
+
+            Serial.print("Write Checksum: 0x");
+            Serial.println(writeChecksum, HEX);
           }
           break;
+          case CMD_READ_HEX:
+          {
+            flasher.readFlashBlock(0, fileArray, TARGET_FLASH_SIZE);
+
+            uint32_t checksum = 0;
+            for (uint16_t index = 0; index < TARGET_FLASH_SIZE; index++)
+            {
+              checksum += fileArray[index];
+            }
+
+            Serial.print("Checksum: 0x");
+            Serial.println(checksum, HEX);
+          }
+          break;
+          case CMD_READ_CONFIGS:
+          {
+            flasher.readConfigBlock(0, configBytes, 255);
+
+            uint16_t checksum = 0;
+
+            for (uint8_t index = 0; index < 255; index++)
+            {
+              checksum += configBytes[index];
+
+              Serial.print("Config[");
+              Serial.print(index);
+              Serial.print("]: ");
+              Serial.println(configBytes[index]);
+            }
+
+            Serial.print("Checksum: 0x");
+            Serial.println(checksum, HEX);
+          }
         }
         default:
           break;

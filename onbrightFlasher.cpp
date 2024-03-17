@@ -232,7 +232,28 @@ byte OnbrightFlasher::writeFlashByte(const unsigned int flashAddress, const unsi
   return result;
 }
 
-byte OnbrightFlasher::writeFlashBlock(const unsigned int flashAddress, unsigned char* flashbyte, const unsigned char length)
+byte OnbrightFlasher::readFlashBlock(const unsigned int flashAddress, unsigned char (&flashbyte)[], const unsigned int length)
+{
+  byte result;
+
+  unsigned int currentAddress;
+  unsigned int index;
+
+  for (index = 0; index < length; index++)
+  {
+    currentAddress = flashAddress + index;
+    result = readFlashByte(currentAddress, flashbyte[index]);
+
+#if defined(ESP8266)
+    // FIXME: ugly hack
+    ESP.wdtFeed();
+#endif
+  }
+
+  return result;
+}
+
+byte OnbrightFlasher::writeFlashBlock(const unsigned int flashAddress, unsigned char* flashbyte, const unsigned int length)
 {
   byte result;
 
@@ -243,6 +264,22 @@ byte OnbrightFlasher::writeFlashBlock(const unsigned int flashAddress, unsigned 
   {
     currentAddress = flashAddress + index;
     result = writeFlashByte(currentAddress, flashbyte[index]);
+  }
+
+  return result;
+}
+
+byte OnbrightFlasher::readConfigBlock(const unsigned char flashAddress, unsigned char (&flashbyte)[], const unsigned char length)
+{
+  byte result;
+
+  unsigned int currentAddress;
+  unsigned int index;
+
+  for (index = 0; index < length; index++)
+  {
+    currentAddress = flashAddress + index;
+    result = readConfigByte(currentAddress, flashbyte[index]);
   }
 
   return result;
