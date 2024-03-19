@@ -73,6 +73,7 @@
 
 // microcontroller flash size
 #define TARGET_FLASH_SIZE 8192
+#define CONFIG_BYTE_SIZE    64
 
 // uncomment for more print() statements
 // however, some extra information is not very helpful to users
@@ -743,16 +744,17 @@ void loop()
           break;
           case CMD_READ_CONFIGS:
           {
-            flasher.readConfigBlock(0, configBytes, 255);
+            // beyond 64 bytes wraps around to zero
+            flasher.readConfigBlock(0, configBytes, CONFIG_BYTE_SIZE);
 
             uint16_t checksum = 0;
 
-            for (uint8_t index = 0; index < 255; index++)
+            for (uint8_t index = 0; index < CONFIG_BYTE_SIZE; index++)
             {
               checksum += configBytes[index];
 
-              Serial.print("Config[");
-              Serial.print(index);
+              Serial.print("config[0x");
+              Serial.print(index, HEX);
               Serial.print("]: ");
               Serial.println(configBytes[index]);
             }
