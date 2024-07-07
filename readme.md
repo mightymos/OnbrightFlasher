@@ -74,5 +74,9 @@ It is probably easiest to just use an external programmer unfortunately.
 11. For `blink.ihx`, the red LED on the Sonoff target should begin blinking with a one-second period.
 12. For `RF-Bridge-OB38S003_PassthroughMode.hex`, the red LED on Sonoff should light up once at startup.
 
+
 ### Web Upload Mode (WARNGING: NEEDS TESTING!):
 Not included at this time.
+
+
+## More in depth [flashing guide by example](flashing-guide-by-example.md). ##
