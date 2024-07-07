@@ -244,10 +244,11 @@ byte OnbrightFlasher::readFlashBlock(const unsigned int flashAddress, unsigned c
     currentAddress = flashAddress + index;
     result = readFlashByte(currentAddress, flashbyte[index]);
 
-#if defined(ESP8266)
-    // FIXME: ugly hack
-    ESP.wdtFeed();
-#endif
+//#if defined(ESP8266)
+    // ugly hack, try using yield() instead
+    //ESP.wdtFeed();
+    yield();
+//#endif
   }
 
   return result;
