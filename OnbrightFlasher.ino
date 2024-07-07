@@ -33,10 +33,17 @@
   #include <Wire.h>
 #endif
 
+// these need to be uncommented and defined if your board definitions do not specify thes i2c pins
+#define PIN_WIRE_SDA 32
+#define PIN_WIRE_SCL 33
 
 // microcontroller flash size
 #define TARGET_FLASH_SIZE 8192
 #define CONFIG_BYTE_SIZE    64
+
+// NOTE USED CURRENTLY
+//#define OUTPUT_TO_CONTROL_RESET_AVAILABLE
+//#define PUSH_BUTTON_AVAILABLE
 
 // uncomment for more print() statements
 // however, some extra information is not very helpful to users
@@ -51,10 +58,15 @@
 #endif
 
 // not used currently
-//#define PUSH_BUTTON_AVAILABLE
 #if defined(PUSH_BUTTON_AVAILABLE)
   // Sonoff bridge (gpio0)
   int pushButton = 0;
+#endif
+
+// not used currently
+#if defined(OUTPUT_TO_CONTROL_RESET_AVAILABLE)
+ // Sonoff bridge (gpio2)
+ int outputToControlReset = 2;
 #endif
 
 // 
@@ -76,7 +88,9 @@
 
 // parses received serial strings looking for hex lines or commands
 simpleParser<100> ttycli(Serial);
-byte debug = 0;
+
+// set to 1 to allow some debugging messages
+byte debug = 1;
 
 // valid commands
 static const char PROGMEM cmds[] = 
@@ -121,20 +135,16 @@ OnbrightFlasher flasher;
 char swTxBuffer[64];
 char swRxBuffer[64];
 
-// littlefs
-//File hexFile;
-//size_t filesize;
-
-//uint8_t flashMirror[TARGET_FLASH_SIZE];
-//uint32_t size;
-uint8_t configBytes[255];
 
 // led blink task
 int togglePeriod = 1000;
 
 // FIXME: no magic numbers
-// stores file in ram read from LittleFS filesystem
-//uint8_t fileArray[32767];
+// stores content to write or content read from flash
+uint8_t fileArray[32767];
+
+//uint32_t size;
+uint8_t configBytes[255];
 
 // the stock programmer allowed choosing initial value of either 0x00 or 0xFF
 // so this needs to be supported and accounted for as well - i.e., checksum will be different in either case
@@ -156,7 +166,7 @@ enum
 };
 
 // state machine for handshake
-unsigned char state = idle;
+//unsigned char state = idle;
 
 // count and display an index to user just so they know program is still running
 int heartbeatCount = 0;
@@ -333,6 +343,246 @@ void toggleLED_nb(void)
     }
 }
 
+uint8_t state_machine_command(int clicmd, uint8_t state)
+{
+  // for ack, nack, etc. results
+  byte result;
+
+  // FIXME: add comment
+  uint8_t results[64];
+
+  int16_t addr;
+  // should be 0xA for Onbright
+  uint8_t chipType;
+
+  switch (clicmd)
+  {
+    case CMD_IDLE:
+      // FIXME: a messy code organization here
+      // impacts state machine below
+      Serial.println("State changing to idle");
+      state = idle;
+      break;
+    case CMD_HANDSHAKE:
+      Serial.println("State changing to handshake");
+      Serial.println("cycle power to target (start with power off and then turn on)");
+      state = handshake;
+      break;
+    case CMD_VERSION:
+      Serial.print("Date: ");
+      Serial.print(__DATE__);
+      Serial.print(" Time: ");
+      Serial.println(__TIME__);
+      break;
+    case CMD_SIGNATURE:
+      Serial.println("Read chip type...");
+      result = flasher.readChipType(chipType);
+      checkError(result);
+
+      if (result > 0)
+      {
+        Serial.println("Chip read type FAILED");
+        Serial.print("Chip type reported was: 0x");
+        Serial.println(chipType, HEX);
+      } else {
+        Serial.print("Chip read: 0x");
+        Serial.println(chipType, HEX);
+      }
+      break;
+    case CMD_ERASE:
+      Serial.println("Erasing chip...");
+      result = flasher.eraseChip();
+      checkError(result);
+
+      // FIXME: this is a hack for now, because sometimes Wire timeouts
+      // even though erase worked (confirmed by reading flash byte at 0 as 255 (i.e., 0xFF))
+      if ((result != 0) && (result != 5))
+      {
+        Serial.println("Chip erase FAILED");
+      } else {
+        Serial.println("Chip erase successful");
+      }
+      break;
+    case CMD_GET_FUSE:
+      Serial.println("Get configuration byte...");
+      addr = ttycli.number();
+      result = flasher.readConfigByte(addr, results[0]);
+      checkError(result);
+
+      if (result > 0)
+      {
+        Serial.println("Get configuration byte FAILED");
+      } else {
+        Serial.print("Configuration byte at (");
+        Serial.print(addr);
+        Serial.print(") is: ");
+        Serial.println(results[0]);
+      }
+      break;
+    case CMD_READ_FLASH:
+      Serial.println("Reading flash...");
+      addr = ttycli.number();
+      result = flasher.readFlashByte(addr, results[0]);
+      checkError(result);
+
+      if (result > 0)
+      {
+        Serial.println("Read flash FAILED");
+      } else {
+        Serial.print("Flash at (");
+        Serial.print(addr);
+        Serial.print(") is: ");
+        Serial.println(results[0]);
+      }
+      break;
+    case CMD_WRITE_FLASH:
+      Serial.println("Writing flash...");
+      addr = ttycli.number();
+      results[0] = ttycli.number();
+      result = flasher.writeFlashByte(addr, results[0]);
+      checkError(result);
+
+      if (result > 0)
+      {
+        Serial.println("Write flash FAILED");
+      } else {
+        Serial.println("Wrote flash byte");
+      }
+      break;
+    case CMD_SET_FUSE:
+      Serial.println("Set configuration byte...");
+      addr = ttycli.number();
+      results[0] = ttycli.number();
+      result = flasher.writeConfigByte(addr, results[0]);
+      checkError(result);
+
+      if (result > 0)
+      {
+        Serial.println("Write configuration byte FAILED");
+      } else {
+        // FIXME: it would be a good idea to have a read, write, verify option however
+        // or tell user to read back to verify
+        Serial.println("Wrote configuration byte");
+      }
+      break;
+    case CMD_MCU_RESET:
+      Serial.println("MCU reset...");
+      flasher.resetMCU();
+      break;
+    case CMD_FLASH_HEX:
+      Serial.println("Flash hex file - unused");
+      break;
+    case CMD_READ_HEX:
+    {
+      flasher.readFlashBlock(0, fileArray, TARGET_FLASH_SIZE);
+
+      uint32_t checksum = 0;
+      for (uint16_t index = 0; index < TARGET_FLASH_SIZE; index++)
+      {
+        checksum += fileArray[index];
+      }
+
+      Serial.print("Checksum: 0x");
+      Serial.println(checksum, HEX);
+    }
+      break;
+    case CMD_READ_CONFIGS:
+    {
+      // beyond 64 bytes wraps around to zero address as best I can tell
+      flasher.readConfigBlock(0, configBytes, CONFIG_BYTE_SIZE);
+
+      uint16_t checksum = 0;
+
+      for (uint8_t index = 0; index < CONFIG_BYTE_SIZE; index++)
+      {
+        checksum += configBytes[index];
+
+        Serial.print("config[0x");
+        Serial.print(index, HEX);
+        Serial.print("]: ");
+        Serial.println(configBytes[index]);
+      }
+
+      Serial.print("Checksum: 0x");
+      Serial.println(checksum, HEX);
+    }
+      break;
+  }
+
+  return state;
+}
+
+uint8_t state_machine_flasher(uint8_t state)
+{
+  // used for handshake only
+  bool gotAck;
+
+  // for ack, nack, etc. results
+  byte result;
+
+  // should be 0xA for Onbright
+  uint8_t chipType;
+
+  // state machine for handshake
+  // FIXME: this should probably be implemented properly, eventually
+  // [https://www.aleksandrhovhannisyan.com/blog/implementing-a-finite-state-machine-in-cpp/]
+  switch(state)
+  {
+    case idle:
+      break;
+    case handshake:
+      gotAck = flasher.onbrightHandshake();
+
+      // cannot really depend on nack/ack to indicate success in this instance
+      // because there is a mix of expected nacks or expected acks
+      // but handshake will return true if first expected ack is received
+      if (!gotAck)
+      {
+
+#ifdef VERBOSE_DEBUG
+        Serial.print("Handshake FAILED (");
+        Serial.print(heartbeatCount);
+        Serial.println(")");
+        Serial.println("cycle power to target (start with power off and then turn on)");
+#endif
+
+        heartbeatCount += 1;
+      } else {
+        Serial.println("Handshake succeeded");
+
+        // there seems to be about a 120ms delay in official programmer traces
+        delay(120);
+
+        // we apparently read chip type after handshake
+        result = flasher.readChipType(chipType);
+        checkError(result);
+
+        if (result > 0)
+        {
+          Serial.println("Chip read type FAILED");
+          Serial.print("Chip type reported was: 0x");
+          Serial.println(chipType, HEX);
+          Serial.println("Can try command [signature] or [idle] then [handshake] to retry");
+
+          state = idle;
+        } else {
+          Serial.print("Chip read: 0x");
+          Serial.println(chipType, HEX);
+
+          state = connected;
+        }
+      }
+      break;
+    case connected:
+      Serial.println("Connected...");
+      Serial.println("Returning to idle state...");
+      state = idle;
+      break;
+  }
+
+  return state;
+}
+
 void setup()
 {
 
@@ -407,18 +657,11 @@ void loop()
   static uint8_t state = idle;
   static uint8_t status;
 
-  // should be 0xA for Onbright
-  uint8_t chipType;
-
-  // for ack, nack, etc. results
-  byte result;
-
-  // used for handshake only
-  bool gotAck;
-
   // for parsing of serial
   int clicmd;
   int16_t addr;
+  // for ack, nack, etc. results
+  byte result;
   uint8_t results[64];
 
   unsigned int writeCount = 0;
@@ -495,246 +738,14 @@ void loop()
         printf("Have command %d\n", clicmd);
       }
 
-      switch (clicmd)
-      {
-        case CMD_IDLE:
-          // FIXME: a messy code organization here
-          // impacts state machine below
-          Serial.println("State changing to idle");
-          state = idle;
-          break;
-        case CMD_HANDSHAKE:
-          Serial.println("State changing to handshake");
-          Serial.println("cycle power to target (start with power off and then turn on)");
-          state = handshake;
-          break;
-        case CMD_VERSION:
-          Serial.print("Date: ");
-          Serial.print(__DATE__);
-          Serial.print(" Time: ");
-          Serial.println(__TIME__);
-          break;
-        case CMD_SIGNATURE:
-          Serial.println("Read chip type...");
-          result = flasher.readChipType(chipType);
-          checkError(result);
-
-          if (result > 0)
-          {
-            Serial.println("Chip read type FAILED");
-            Serial.print("Chip type reported was: 0x");
-            Serial.println(chipType, HEX);
-          } else {
-            Serial.print("Chip read: 0x");
-            Serial.println(chipType, HEX);
-          }
-          break;
-        case CMD_ERASE:
-          Serial.println("Erasing chip...");
-          result = flasher.eraseChip();
-          checkError(result);
-
-          // FIXME: this is a hack for now, because sometimes Wire timeouts
-          // even though erase worked (confirmed by reading flash byte at 0 as 255 (i.e., 0xFF))
-          if ((result != 0) && (result != 5))
-          {
-            Serial.println("Chip erase FAILED");
-          } else {
-            Serial.println("Chip erase successful");
-          }
-          break;
-        case CMD_GET_FUSE:
-          Serial.println("Get configuration byte...");
-          addr = ttycli.number();
-          result = flasher.readConfigByte(addr, results[0]);
-          checkError(result);
-
-          if (result > 0)
-          {
-            Serial.println("Get configuration byte FAILED");
-          } else {
-            Serial.print("Configuration byte at (");
-            Serial.print(addr);
-            Serial.print(") is: ");
-            Serial.println(results[0]);
-          }
-          break;
-        case CMD_READ_FLASH:
-          Serial.println("Reading flash...");
-          addr = ttycli.number();
-          result = flasher.readFlashByte(addr, results[0]);
-          checkError(result);
-
-          if (result > 0)
-          {
-            Serial.println("Read flash FAILED");
-          } else {
-            Serial.print("Flash at (");
-            Serial.print(addr);
-            Serial.print(") is: ");
-            Serial.println(results[0]);
-          }
-          break;
-        case CMD_WRITE_FLASH:
-          Serial.println("Writing flash...");
-          addr = ttycli.number();
-          results[0] = ttycli.number();
-          result = flasher.writeFlashByte(addr, results[0]);
-          checkError(result);
-
-          if (result > 0)
-          {
-            Serial.println("Write flash FAILED");
-          } else {
-            Serial.println("Wrote flash byte");
-          }
-          break;
-        case CMD_SET_FUSE:
-          Serial.println("Set configuration byte...");
-          addr = ttycli.number();
-          results[0] = ttycli.number();
-          result = flasher.writeConfigByte(addr, results[0]);
-          checkError(result);
-
-          if (result > 0)
-          {
-            Serial.println("Write configuration byte FAILED");
-          } else {
-            // FIXME: it would be a good idea to have a read, write, verify option however
-            // or tell user to read back to verify
-            Serial.println("Wrote configuration byte");
-          }
-          break;
-        case CMD_MCU_RESET:
-          Serial.println("MCU reset...");
-          flasher.resetMCU();
-          break;
-        case CMD_FLASH_HEX:
-          Serial.println("Opening hex file");
-          //hexFile = LittleFS.open("firmware.hex", "r");
-
-          //the size of the file in bytes 
-          //filesize = hexFile.size();
-
-          Serial.print("File size: ");
-          //Serial.println(filesize);
-
-          Serial.print("Buffer size: ");
-          //Serial.println(sizeof(fileArray));
-
-          Serial.println("Reading file...");
-          //hexFile.read(fileArray, filesize);
-
-          Serial.println("Closing file...");
-
-          Serial.println("Starting hex parsing...");
-          //uint32_t result = rf_search_and_write(fileArray, filesize);
-
-          Serial.print("rf_search_and_write() returned: ");
-          Serial.println(result);
-
-          Serial.print("Write Checksum: 0x");
-          Serial.println(writeChecksum, HEX);
-          break;
-        case CMD_READ_HEX:
-          {
-            //flasher.readFlashBlock(0, fileArray, TARGET_FLASH_SIZE);
-
-            uint32_t checksum = 0;
-            for (uint16_t index = 0; index < TARGET_FLASH_SIZE; index++)
-            {
-            //  checksum += fileArray[index];
-            }
-
-            Serial.print("Checksum: 0x");
-            Serial.println(checksum, HEX);
-          }
-          break;
-        case CMD_READ_CONFIGS:
-        {
-          // beyond 64 bytes wraps around to zero
-          flasher.readConfigBlock(0, configBytes, CONFIG_BYTE_SIZE);
-
-          uint16_t checksum = 0;
-
-          for (uint8_t index = 0; index < CONFIG_BYTE_SIZE; index++)
-          {
-            checksum += configBytes[index];
-
-            Serial.print("config[0x");
-            Serial.print(index, HEX);
-            Serial.print("]: ");
-            Serial.println(configBytes[index]);
-          }
-
-          Serial.print("Checksum: 0x");
-          Serial.println(checksum, HEX);
-        }
-        default:
-          Serial.println("Unknown command");
-          break;
-      }
+      state = state_machine_command(clicmd, state);
     }
   }
 
+
   // put your main code here, to run repeatedly:
 
-  // state machine for handshake
-  // FIXME: this should probably be implemented properly, eventually
-  // [https://www.aleksandrhovhannisyan.com/blog/implementing-a-finite-state-machine-in-cpp/]
-  switch(state)
-  {
-    case idle:
-      break;
-    case handshake:
-      gotAck = flasher.onbrightHandshake();
-
-      // cannot really depend on nack/ack to indicate success in this instance
-      // because there is a mix of expected nacks or expected acks
-      // but handshake will return true if first expected ack is received
-      if (!gotAck)
-      {
-
-#ifdef VERBOSE_DEBUG
-        Serial.print("Handshake FAILED (");
-        Serial.print(heartbeatCount);
-        Serial.println(")");
-        Serial.println("cycle power to target (start with power off and then turn on)");
-#endif
-
-        heartbeatCount += 1;
-      } else {
-        Serial.println("Handshake succeeded");
-
-        // there seems to be about a 120ms delay in official programmer traces
-        delay(120);
-
-        // we apparently read chip type after handshake
-        result = flasher.readChipType(chipType);
-        checkError(result);
-
-        if (result > 0)
-        {
-          Serial.println("Chip read type FAILED");
-          Serial.print("Chip type reported was: 0x");
-          Serial.println(chipType, HEX);
-          Serial.println("Can try command [signature] or [idle] then [handshake] to retry");
-
-          state = idle;
-        } else {
-          Serial.print("Chip read: 0x");
-          Serial.println(chipType, HEX);
-
-          state = connected;
-        }
-      }
-      break;
-    case connected:
-      Serial.println("Connected...");
-      Serial.println("Returning to idle state...");
-      state = idle;
-      break;
-  }
+  state = state_machine_flasher(state);
 
   // periodic led blink to show board is alive
   // this will only actually toggle pin if LED_BUILTIN is defined
