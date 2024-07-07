@@ -1,19 +1,31 @@
 ## Background
 This is intended to allow flashing 8051 based OBS38S003 microcontrollers as a target.  
 
-For example, the ESP8285 present in the Sonoff RF Bridge R2 v2.2 serves as the source flasher.  
-The USBRXD pin is bridged to SCL, while the USBTXD pin is bridged to SDA.  
+An external ESP8266/ESP32 module or similar serves as the flasher.
+
+Note that the reset function on the reset pin of the stock Sonoff RF Bridge is probably disabled.  
+In other words, the pin is configured as GPIO by fuse and thus the target cannot be held in reset.  
+Handshaking is apparently performed at microcontroller power up or restart.  
+Therefore, the flasher is independently powered while a second power source is used to the target.  
+
+
+Once setfuse is changed (see below) the ESP8285 on the Sonoff itself could be used to reflash the microcontroller.  
+However, this would require soldering a wire to the reset pad.  
+Additionally, the serial pins communicating with the Arduino serial monitor mighty be interferred with by microcontroller activity.  
+The original Sonoff black case with EFM8BB1 allowed microcontroller reset by a long pulse on an C2D pin but that is not available here.  
+It is probably easiest to just use an external flasher.  
+
+For manual programming each HEX line must be pasted into the serial monitor individually.  
+A script has been contributed that would make file upload automatic.  
 
 The sketch has successfully flashed a simple blink program.  
 
-## Downsides
-First, the reset function on the reset pin of the Sonoff RF Bridge is probably disabled.  
-Additionally, handshaking is apparently performed at microcontroller power up or restart.  
-Therefore, for the first use of this sketch an independently powered Arduino chip would need to be used as source flasher.  
-Once setfuse is changed (see below) the ESP8285 on the Sonoff itself could be used later to reflash the microcontroller.  
 
-Second, each hex file line must be copy and pasted into the serial monitor individually.  
-A script is being contributed that would make file upload automatic.  
+## Sonoff
+For example, the ESP8285 present in the Sonoff RF Bridge R2 v2.2 serves as the source flasher.  
+The USBRXD pin is bridged to SCL, while the USBTXD pin is bridged to SDA.  
+The reset pad would need to be soldered with a wire, though the datasheet is unclear if reset is active low or active high.  
+It is probably easiest to just use an external programmer unfortunately.  
 
 ## Flashers
 | Board | Status | Note | 
@@ -63,9 +75,4 @@ A script is being contributed that would make file upload automatic.
 12. For `RF-Bridge-OB38S003_PassthroughMode.hex`, the red LED on Sonoff should light up once at startup.
 
 ### Web Upload Mode (WARNGING: NEEDS TESTING!):
-1. Set gateway, dns, local IP, SSID and password in Network.h
-2. Upload sketch
-3. Follow the Manual Mode handshake instructions to handshake and erase chip
-4. Navigate to 192.168.10.150 in browser
-5. Upload "firmware.hex" (exact file name and in hex format - i.e., ihx format will not work (use packihx if needed); for now must use Unix line endings LF (use dos2unix if needed))
-6. Type "flashhex" in serial monitor
+Not included at this time.

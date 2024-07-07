@@ -10,7 +10,7 @@
 // example: https://github.com/WestfW/Duino-hacks/blob/master/hvTiny28prog/hvTiny28prog.ino
 #include "simpleParser.h"
 
-// chooses which i2c wire compatible library to use (e.g., software based, hardware based, etc.)
+// chooses which i2c wire compatible library to use (e.g., software based Softwire, hardware based Wire, or SoftwareWire)
 #include "projectDefs.h"
 
 // same intel hex parser used by Tasmota (originally from c2_prog_wifi project)
@@ -33,9 +33,12 @@
   #include <Wire.h>
 #endif
 
-// these need to be uncommented and defined if your board definitions do not specify thes i2c pins
-#define PIN_WIRE_SDA 32
-#define PIN_WIRE_SCL 33
+// these need to be uncommented and defined only if your board definitions do not specify the i2c pins
+// or you want to use alternative pins for software i2c for example
+//
+// e.g., SDA (32) and SCL (33) are for my ESP32-WROOM with 38 pins
+//#define PIN_WIRE_SDA 32
+//#define PIN_WIRE_SCL 33
 
 // microcontroller flash size
 #define TARGET_FLASH_SIZE 8192
@@ -75,7 +78,7 @@
   int sdaPin = PIN_WIRE_SDA;
   int sclPin = PIN_WIRE_SCL;
 #else
-  #error Please specify SDA pin and SCL pin for your board
+  #error Please specify PIN_WIRE_SDA pin and PIN_WIRE_SCL pin for your board in the #define(s) present in OnbrightFlasher.ino
 #endif
 
 #if defined(USE_SOFTWIRE_LIBRARY)
@@ -90,7 +93,7 @@
 simpleParser<100> ttycli(Serial);
 
 // set to 1 to allow some debugging messages
-byte debug = 1;
+byte debug = 0;
 
 // valid commands
 static const char PROGMEM cmds[] = 
