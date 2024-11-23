@@ -21,13 +21,13 @@ A script has been contributed that would make file upload automatic.
 The sketch has successfully flashed a simple blink program.  
 
 
-## Sonoff
+## Flashing using the Sonoff's internal ESP8285
 For example, the ESP8285 present in the Sonoff RF Bridge R2 v2.2 serves as the source flasher.  
 The USBRXD pin is bridged to SCL, while the USBTXD pin is bridged to SDA.  
 The reset pad would need to be soldered with a wire, though the datasheet is unclear if reset is active low or active high.  
 It is probably easiest to just use an external programmer unfortunately.  
 
-## Flashers
+## External Flashers
 | Board | Status | Note | 
 | ------------- | ------------- | ------------- | 
 |  ESP8265 (e.g. in Sonoff) | WORKING  | none | 
@@ -45,13 +45,20 @@ It is probably easiest to just use an external programmer unfortunately.
 |  Verify flash memory | TODO  | none | 
 ## Usage
 
-### Hardware setup
-1. Connect Arduino I2C/GPIO pins to the microcontroller while unpowered.  
-2. Target microcontroller can be powered by an independent supply, or from 3.3V output regulator on Arduino board.  
+### Preparing the external flasher
+1. Grab an external ESP8266 (NodeMCU/D1 mini), ESP32, or Arduino Mega 2560 board
+2. Download the current source code, open "OnbrightFlasher.ino" into arduino IDE, and then compile and upload it to the external flasher
+3. Done
+
+### Flashing the radio chip
+1. Connect ESP or Arduino I2C/GPIO pins to the microcontroller while unpowered.  
+2. Target microcontroller can be powered by an independent supply,  from 3.3V output regulator on Arduino board, or by powering the RFbridge via its USB port.  
 3. Using output regulators on Arduino boards seems to lead to power up glitches (e.g., serial monitor disconnects, handshake fails).  
-4. Target should remain unpowered until handshake is started.  
-5. Specify software or hardware I2C in project - see projectDefs.h.  
-6. Upload the sketch to ESP8265/ESP8266/ESP32.  
+4. Target should remain unpowered until handshake is started.
+5. Excute "FalshScript.py" and choose the desired [firmware](https://github.com/mightymos/RF-Bridge-OB38S003/releases/) to upload. When prompted, supply power to the radio chip.
+6. Wait for flashing to finish.
+7. Done
+
 
 ### Script Mode:
 1. Copy the desired hex file from [GitHub Releases](https://github.com/mightymos/RF-Bridge-OB38S003/releases) to the script directory.
