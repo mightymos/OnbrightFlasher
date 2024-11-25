@@ -1,52 +1,55 @@
 # Flashing guide by example
 
-## Packaging
+## 1. Preparing the RF bridge
+Overview: expose the PCB of the RF bridge and erase the onboard ESP8256
+
+
+### Packaging
 
 Example of what the packaging back and front looks like.
 
-<img src="images/Packaging-front.png" width="33%" height="33%">
+<img src="images/Packaging-front.png" width="33%" height="33%"> <img src="images/Packaging-back.png" width="32%" height="32%">
 
-
-Take note of the **Model:** field, it does not indicate a version 2.2, only once the PCB is removed from the casing will you be able to identify the version.
-
-<img src="images/Packaging-back.png" width="33%" height="33%">
+Take note of the **Model** field. If it indicates version R2, only once the PCB is removed from the casing will you be able to identify the version if R2 2.2 or R2 1.0 [See all versions](https://tasmota.github.io/docs/devices/Sonoff-RF-Bridge-433/). This guide shows the R2 2.2. 
 
 
 
-## Prepare the PCB
+### Prepare the PCB
 
 Remove the PCB from the housing, this is achieved by removing the rubber feet first.  Using your finger nail pry underneath the recessed glued in-place feet.  It can be tricky, alternatively you can use a plastic disassembly spatula to remove the feet.  The glue stays intact on the rubber feet and can be re-used later during the re-assembly.
 
-<img src="images/Remove-feet.png" width="50%" height="50%">
+<img src="images/Remove-feet.png" width="33%" height="33%"> <img src="images/Remove-screws.png" width="21%" height="21%"> <img src="images/Remove-PCB.png" width="30%" height="30%">
 
-For safe keeping stick the feet to the plastic cover overhanging the top of the unit, that way they won't get lost.
-
-<img src="images/Remove-screws.png" width="50%" height="50%">
+For safe keeping stick the feet to the plastic cover overhanging the top of the unit, that way they won't get lost. The best way to remove the PCB is to just flip over the entire housing and let it drop out, keep it low over the table or your hand to prevent it from damaging.
 
 
-The best way to remove the PCB is to just flip over the entire housing and let it drop out, keep it low over the table or your hand to prevent it from damaging.
-
-<img src="images/Remove-PCB.png" width="50%" height="50%">
 
 
-## Erasing the ESP on the PCB
+### Erasing the ESP8256 of the PCB of the RFbridge (recommended)
 
-Next erase the ESP, this serves a dual purpose. 
-1) Reduce power consumption during MCU flashing 
-2) Prevent ESP interference with the MCU flashing 
-as it has no code on it at start-up
+Next erase the ESP8256 on the RF bridge, this serves a dual purpose. 
+a) Reduce power consumption during MCU flashing 
+b) Prevent ESP interference with the MCU flashing as it has no code on it at start-up
 
-Connect the **USB to serial** flasher to the ESP using 4 breadboard wires to the existing holes. For a more secure and permanent solution you can solder headers to the green PCB and connect the breadboard wire to it. *Please note without headers electrical glitches may occur with dangling wires and may cause failed flashing.*
+Note: Some users reoprted success flashing the radio chip on V2.2 RF bridge without erasing the ESP8256. However, the bridge's ESP was already flashed with ESPHome. It is nonetheless recommended to erase the bridge's ESP if you're coming from stock firmware or flashing passthrough firmware to the radio chip.
+
+1) Connect the ESP8256 to a **USB to serial adapter (FTDI)**  to the ESP using 4 breadboard wires to the existing holes. For a more secure and permanent solution you can solder headers to the green PCB and connect the breadboard wire to it. *Please note without headers electrical glitches may occur with dangling wires and may cause failed flashing.*
 
 Wires to connect: *3V3, TX, RX and GND*
+| External FTDI  | ESP8256 (J2) | 
+| ------------- | ------------- |
+| 3V3  | 3V3  |
+| TX  | RX  |
+| RX | TX  |
+| GND  | GND  |
 
-<img src="images/ESP-flash-wiring.png" width="66%" height="66%">
 
-Before powering the **USB to serial** flasher press and hold the button on the green PCB, only release it after the **USB to serial** flasher is plugged into the computer.
+2) Before powering the **USB to serial adapter**, press and hold the button on the RFbridge's PCB, only release it after the **USB to serial adapter**  is plugged into the computer.
 
-<img src="images/ESP-flash-mode.png" width="33%" height="33%">
+<img src="images/ESP-flash-wiring.png" width="50%" height="50%"> <img src="images/ESP-flash-mode.png" width="23%" height="23%">
 
-Use **esptool** to erase the ESP.
+3) Use **esptool** to erase the ESP
+
 ```
 esptool.py --chip auto --port /dev/cu.usbserial-A904SFSD erase_flash
 esptool.py v4.7.0
@@ -66,35 +69,51 @@ Erasing flash (this may take a while)...
 Chip erase completed successfully in 1.7s
 Hard resetting via RTS pin...
 ```
+Alternatively, https://web.esphome.io/ can be used to erase the ESP, but this will write a very basic version of ESPHome on the bridge and did not cause problems for some testers.
 
+## Prepare external flasher for the RF chip 
+1) Grab an empty Wesmos D1 board (or 8266 NodeMCU or Arduino boards)
+2. Download the current source code, open "OnbrightFlasher.ino" into arduino IDE, and then compile and upload it to the external flasher (**Wesmos D1**)
+3. Done
 
-## Erasing the MCU on the PCB
-
-Prepare the MCU for flashing by wiring it to the **WeMos D1** as follow. 
-
-Wires to connect: *GND,SCL, SDA, 3V3*  
-**Stay away from the 5V line, do not connect to the 5V line on your WeMos D1.**
-
-<img src="images/MCU-flash-wiring.png" width="66%" height="66%">
-
-Next load the Arduino IDE and install the **OnbrightFlasher** on the **Wemos D1**.
 
 ![alt text](images/ESP-flash-result.png)
 
-Remove the power **(red cable in picture)** from the Arduino to ready it for handshake. In the Arduino IDE serial monitor issue the ```handshake``` command and only then put the red cable back into the **WeMos D1** 3V3 pin. The handshake should succeed but the **chip type might be wrong**; this seems to be the case with new/fresh boards only.
+## Erasing the MCU (RF chip) on the PCB
+
+1) Prepare the MCU for flashing by wiring it to the **WeMos D1** as follow. 
+ 
+| RF chip OB38S003 (J3) | External flasher (Wesmos D1) | 
+| ------------- | ------------- |
+| SCL  | SCL  |
+| SDA | SDA  |
+| GND  | GND  |
+| 3V3  | 3V3 (leave it disconnected till step 2) |
+
+**Stay away from the 5V line, do not connect to the 5V line on your WeMos D1.**
+
+I have had success not connecting the 3V3 wire and instead powering the RF chip by powering the RFbridge using its microUSB when prompted. 
+
+See [pinouts](https://randomnerdtutorials.com/esp8266-pinout-reference-gpios/) if using NodeMCU board instead of Wesmos D1.
+
+<img src="images/MCU-flash-wiring.png" width="35%" height="35%">
 
 
-**IGNORE THE INCORRECT CHIP TYPE AND CONTINUE TO ATTEMPT AND ERASE THE CHIP.**
+
+2) With Wemos D1 connected to the PC (and 3V3 wire not yet connected), in the Arduino IDE serial monitor, issue the ```handshake``` command
+3) When prompted, then put the red cable back into the **WeMos D1** 3V3 pin.
+
+**Note**: The handshake should succeed but you might get **chip type might be wrong**; this seems to be the case with new/fresh boards only. **IGNORE THE INCORRECT CHIP TYPE AND CONTINUE TO ATTEMPT AND ERASE THE CHIP.**
 
 ![alt text](images/MCU-handshake-initial.png)
 
 
-Issue the chip ```erase``` command which should complete as successful.
+4) Issue the chip ```erase``` command which should complete as successful.
 
 ![alt text](images/MCU-erase.png)
 
 
-Then request again for the chip type by issuing the ```signature``` command, it should now report correctly.
+5) Then request again for the chip type by issuing the ```signature``` command, it should now report correctly.
 
 ![alt text](images/MCU-signature-success.png)
 
@@ -102,14 +121,14 @@ Then request again for the chip type by issuing the ```signature``` command, it 
 We are now ready to proceed and flash the MCU with the [custom firmware](https://github.com/mightymos/RF-Bridge-OB38S003/).
 
 
-## Flashing the custom firmware to the MCU
-Now we can flash the MCU with the new [custom firmware](https://github.com/mightymos/RF-Bridge-OB38S003/), please [download](https://github.com/mightymos/RF-Bridge-OB38S003/releases/) and add the .hex files in the **OnbrightFlasher** folder.
+## Flashing the custom firmware to the MCU (radio chip)
+1) Now we can flash the MCU with the new [custom firmware](https://github.com/mightymos/RF-Bridge-OB38S003/), please [download](https://github.com/mightymos/RF-Bridge-OB38S003/releases/) and add the .hex files in the **OnbrightFlasher** folder.
 
-Remove the power e.g. red wire from the **WeMos D1** in preparation for a MCU handshake.
+2) Remove the power e.g. red wire from the **WeMos D1** in preparation for a MCU handshake.
 
-From the OS command line execute the ```flashScript.py``` script.  In the example below we selected the comm port and the *passtroughmode* firmware.
+3) From the OS command line (linux/windows/etc), execute the ```flashScript.py``` script.  In the example below, we selected the comm port and the *passtroughmode* firmware.
 
-Apply power to the MCU let it flash.
+4) Apply power to the MCU let it flash.
 
 ```python3 flashScript.py
 Available COM ports:
@@ -257,121 +276,18 @@ Enter the number of the file you want to select: 1
 2024-04-08 11:30:50,251 - INFO - MCU reset...
 Serial connection closed.
 ```
+Disconnect all wires (SDA, SCL, GND, and 3V3) from the RF bridge and Wemos D1.  
+
+## Flashing custom firmware to the ESP8265 (the RF bridge).
+
+Use the same steps as the **section 2** (Erasing the ESP8265 of the PCB of the RFbridge) but instead of erasing, flash Tasmota or ESPHome. ESPHome can be installed with an [online tool](https://web.esphome.io/).
+
+[Example YAML configs for ESPHome](https://github.com/mightymos/RF-Bridge-OB38S003/tree/main/example_esphome_yaml)
+
+Note:
+* For Passthrough firmare and ESPHome, please **take note of pin 1 and 3 for passthrough mode.**
 
 
-## Flashing custom firmware to the ESP
-
-Example of using ESPHome as firmware for the ESP, you may also use Tasmota as an option.  
-
-Passthrough ESPHome definition. **Take note of pin 1 and 3 for passthrough mode.**
-
-
-**Transmitting in this configuration were not yet tested.**
-```
-# Basic Config
-esphome:
-  name: sonoff_rf_bridge01
-  platform: ESP8266
-  board: esp01_1m
-
-logger:
-api:
-ota:
-
-# Device Specific Config
-
-binary_sensor:
-  - platform: status
-    name: "RF Bridge Status"
-
-# use esphome log viewer to get binary transmission for sensor state.  Below are examples when using either single state or dual state sensors.
-
-# use this for single state sensors (single trigger)
-  - platform: remote_receiver
-    name: "Sensor1"
-    rc_switch_raw:
-      code: '100110011100011010101001'
-      protocol: 1
-    filters:
-      - delayed_off: 500ms
-
-# use this for dual state sensors (open/closed trigger)
-  - platform: remote_receiver
-    name: "Sensor 2 Open"
-    internal: yes
-    rc_switch_raw:
-      code: '001111111110111100101110'
-      protocol: 1
-    on_press:
-      - binary_sensor.template.publish:
-          id: Sensor2
-          state: ON
-    filters:
-      - delayed_off: 500ms
-  - platform: remote_receiver
-    name: "Sensor 2 Closed"
-    internal: yes
-    rc_switch_raw:
-      code: '001111111110111100100111'
-      protocol: 1
-    on_press:
-      - binary_sensor.template.publish:
-          id: Sensor2
-          state: OFF
-    filters:
-      - delayed_off: 500ms
-  - platform: template
-    name: "Sensor2 State"
-    device_class: window
-    id: Sensor2
-
-remote_receiver:
-  pin:
-    number: GPIO3
-    mode:
-      input: true
-      pullup: false
-      
-  # suggested on github
-  tolerance: 60%
-  filter: 10us
-  idle: 5ms
-
-remote_transmitter:
-  pin: 1
-  carrier_duty_percent: 100%
-
-status_led:
-  pin:
-    number: GPIO13
-    inverted: yes
-
-wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
-  domain: .mydomain.co.za
-
-  # Enable fallback hotspot (captive portal) in case wifi connection fails
-  ap:
-    ssid: "sonoff_rf_bridge01"
-    password: "mypassword"
-
-captive_portal:
-
-web_server:
-  port: 80
-  auth:
-    username: !secret web_server_username
-    password: !secret web_server_password
-```
-
-Generate the ESPHome firmware and upload it to the ESP, remember to remove the **WeMos D1** used to flash the MCU and add the **USB to Serial** wiring back to flash the ESP.
-
-<img src="images/ESP-flash-esphome.png" width="50%" height="50%">
-
-Visit the ESP in a browser and you should see 433 messages when you press a 433MHz remote nearby.
-
-![alt text](images/ESP-receive-data.png)
 
 
 ## Putting it back together
