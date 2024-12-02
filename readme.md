@@ -42,7 +42,7 @@ It is probably easiest to just use an external programmer unfortunately.
 |  Write flash memory | DONE  | Manually one byte or one hex line at a time | 
 |  Read flash memory | DONE  | Manually one byte at a time | 
 |  Reading/writing configuration bits | PARTIAL  | Need read-modify-write scheme | 
-|  Verify flash memory | TODO  | none | 
+|  Verify flash memory | TODO  | checksums displayed as a basic check | 
 ## Usage
 
 ### Preparing the external flasher
@@ -82,7 +82,7 @@ It is probably easiest to just use an external programmer unfortunately.
 12. For `RF-Bridge-OB38S003_PassthroughMode.hex`, the red LED on Sonoff should light up once at startup.
 
 
-### Web Upload Mode (WARNGING: NEEDS TESTING!):
+### Web Upload Mode (WARNING: NEEDS TESTING!):
 Not included at this time.
 
 
