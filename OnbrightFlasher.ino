@@ -144,10 +144,10 @@ int togglePeriod = 1000;
 
 // FIXME: no magic numbers
 // stores content to write or content read from flash
-uint8_t fileArray[32767];
+uint8_t fileArray[FILE_ARRAY_MAX];
 
 //uint32_t size;
-uint8_t configBytes[255];
+uint8_t configBytes[CONFIG_BYTES_MAX];
 
 // the stock programmer allowed choosing initial value of either 0x00 or 0xFF
 // so this needs to be supported and accounted for as well - i.e., checksum will be different in either case
@@ -619,6 +619,7 @@ void setup()
 
   // FIXME: AVR core does not seem to support specifying pins
   // https://github.com/arduino/ArduinoCore-avr/blob/master/libraries/Wire/src/utility/twi.c
+  //Wire.begin();
   Wire.begin(sdaPin, sclPin);
 #endif
 

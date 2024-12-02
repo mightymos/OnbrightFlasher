@@ -232,7 +232,7 @@ byte OnbrightFlasher::writeFlashByte(const unsigned int flashAddress, const unsi
   return result;
 }
 
-byte OnbrightFlasher::readFlashBlock(const unsigned int flashAddress, unsigned char (&flashbyte)[], const unsigned int length)
+byte OnbrightFlasher::readFlashBlock(const unsigned int flashAddress, unsigned char (&flashbyte)[FILE_ARRAY_MAX], const unsigned int length)
 {
   byte result;
 
@@ -244,11 +244,9 @@ byte OnbrightFlasher::readFlashBlock(const unsigned int flashAddress, unsigned c
     currentAddress = flashAddress + index;
     result = readFlashByte(currentAddress, flashbyte[index]);
 
-//#if defined(ESP8266)
-    // ugly hack, try using yield() instead
-    //ESP.wdtFeed();
+    // reading the entire flash space in an 8KB mcu byte by byte takes a long time in a loop
+    // so explicitly yield to super loop (?) so that watchdog timer on some mcu does not kick in to avoid reset
     yield();
-//#endif
   }
 
   return result;
@@ -270,7 +268,7 @@ byte OnbrightFlasher::writeFlashBlock(const unsigned int flashAddress, unsigned 
   return result;
 }
 
-byte OnbrightFlasher::readConfigBlock(const unsigned char flashAddress, unsigned char (&flashbyte)[], const unsigned char length)
+byte OnbrightFlasher::readConfigBlock(const unsigned char flashAddress, unsigned char (&flashbyte)[CONFIG_BYTES_MAX], const unsigned char length)
 {
   byte result;
 

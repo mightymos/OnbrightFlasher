@@ -10,6 +10,9 @@
 // for byte type
 #include <Arduino.h>
 
+// array sizes
+#define CONFIG_BYTES_MAX   255
+#define FILE_ARRAY_MAX   32767
 
 // advice on switching between SoftWire and Wire libraries
 // [https://arduino-craft-corner.de/index.php/2023/11/29/replacing-the-wire-library-sometimes/]
@@ -88,12 +91,12 @@ class OnbrightFlasher
     byte readConfigByte(const unsigned char address, unsigned char &configByte);
     byte writeConfigByte(const unsigned char address, const unsigned char configByte);
 
-    byte readConfigBlock(const unsigned char address, unsigned char (&configByte)[], const unsigned char length);
+    byte readConfigBlock(const unsigned char address, unsigned char (&configByte)[CONFIG_BYTES_MAX], const unsigned char length);
 
     byte readFlashByte(const unsigned int address, unsigned char &flashByte);
     byte writeFlashByte(const unsigned int address, const unsigned char flashByte);
 
-    byte readFlashBlock(const unsigned int flashAddress, unsigned char (&flashbyte)[], const unsigned int length);
+    byte readFlashBlock(const unsigned int flashAddress, unsigned char (&flashbyte)[FILE_ARRAY_MAX], const unsigned int length);
     byte writeFlashBlock(const unsigned int flashAddress, unsigned char* flashbyte, const unsigned int length);
 
     byte readChipType(unsigned char& chipType);
