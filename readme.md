@@ -3,29 +3,10 @@ This is intended to allow flashing 8051 based OBS38S003 microcontrollers as a ta
 
 An external ESP8266/ESP32 module or similar serves as the flasher.
 
-Note that the reset function on the reset pin of the stock Sonoff RF Bridge is probably disabled.  
-In other words, the pin is configured as GPIO by fuse and thus the target cannot be held in reset.  
-Handshaking is apparently performed at microcontroller power up or restart.  
-Therefore, the flasher is independently powered while a second power source is used to the target.  
-
-
-Once setfuse is changed (see below) the ESP8285 on the Sonoff itself could be used to reflash the microcontroller.  
-However, this would require soldering a wire to the reset pad.  
-Additionally, the serial pins communicating with the Arduino serial monitor mighty be interferred with by microcontroller activity.  
-The original Sonoff black case with EFM8BB1 allowed microcontroller reset by a long pulse on an C2D pin but that is not available here.  
-It is probably easiest to just use an external flasher.  
-
 For manual programming each HEX line must be pasted into the serial monitor individually.  
-A script has been contributed that would make file upload automatic.  
+For automatic programming a Python script has been contributed that supports file upload.  
 
 The sketch has successfully flashed a simple blink program.  
-
-
-## Flashing using the Sonoff's internal ESP8285
-For example, the ESP8285 present in the Sonoff RF Bridge R2 v2.2 serves as the source flasher.  
-The USBRXD pin is bridged to SCL, while the USBTXD pin is bridged to SDA.  
-The reset pad would need to be soldered with a wire, though the datasheet is unclear if reset is active low or active high.  
-It is probably easiest to just use an external programmer unfortunately.  
 
 ## External Flashers
 | Board | Status | Note | 
@@ -35,6 +16,21 @@ It is probably easiest to just use an external programmer unfortunately.
 |  ESP-WROOM-32 | WORKING  | none | 
 |  ESP32S3 | WORKING  | none | 
 |  Arduino Mega 2560 board | WORKING | 5V to 3.3V level translation recommended |
+
+## Flashing using the Sonoff's internal ESP8285
+The ESP8285 present in the Sonoff RF Bridge R2 v2.2 could serve as the source flasher.  
+The USBRXD pin is bridged to SCL, while the USBTXD pin is bridged to SDA.  
+The reset pad would need to be soldered with a wire, though the datasheet is unclear if reset is active low or active high.  
+
+Note that the reset function on the reset pin of the stock Sonoff RF Bridge is probably disabled.  
+In other words, the pin is configured as general purpose input/output by fuse and thus the target cannot be held in reset.  
+Handshaking is apparently performed at microcontroller power up or restart.  
+Therefore, the flasher needs to first be powered while a same or independent power source is applied to the target during handshake.  
+
+Once setfuse is changed (see below) the ESP8285 on the Sonoff itself could be used to reflash the microcontroller.  
+However, this would require soldering a wire to the reset pad.  
+The original Sonoff black case with EFM8BB1 allowed microcontroller reset by a long pulse on an C2D pin but that is not available here.  
+Therefore it is ultimately probably easiest to just use an external flasher.  
 
 ## Status
 | Item | Status | Note | 
@@ -51,11 +47,11 @@ It is probably easiest to just use an external programmer unfortunately.
 3. Done
 
 ### Flashing the radio chip
-1. Connect ESP or Arduino I2C/GPIO pins to the microcontroller while unpowered.  
+1. Connect ESP828x/32 or Arduino I2C/GPIO pins to the microcontroller while unpowered.  
 2. Target microcontroller can be powered by an independent supply,  from 3.3V output regulator on Arduino board, or by powering the RFbridge via its USB port.  
-3. Using output regulators on Arduino boards seems to lead to power up glitches (e.g., serial monitor disconnects, handshake fails).  
+3. Using output regulators on Arduino boards can lead to power up glitches (e.g., recommend erasing ESP8285 first and confirm regulator can supply 100 mA or greater).  
 4. Target should remain unpowered until handshake is started.
-5. Excute "FalshScript.py" and choose the desired [firmware](https://github.com/mightymos/RF-Bridge-OB38S003/releases/) to upload. When prompted, supply power to the radio chip.
+5. Excute "FlashScript.py" and choose the desired [firmware](https://github.com/mightymos/RF-Bridge-OB38S003/releases/) to upload. When prompted, supply power to the radio chip.
 6. Wait for flashing to finish.
 7. Done
 
@@ -65,6 +61,7 @@ It is probably easiest to just use an external programmer unfortunately.
 2. Run `flashScript.py` and follow the instructions in the console.
 3. For `blink.ihx`, the red LED on the Sonoff target should begin blinking with a one-second period.
 4. For `RF-Bridge-OB38S003_PassthroughMode.hex`, the red LED on Sonoff should light up once at startup.
+5. If the script seems to fail the first flash, try erase as in the Manual Mode and then return to use the script.
 
 ### Manual Mode:
 
@@ -72,7 +69,7 @@ It is probably easiest to just use an external programmer unfortunately.
 2. Type "handshake" into the serial monitor.
 3. Power on the target microcontroller with 3.3V.
 4. If chip is protected, chip read will appear to fail due to NACK but chip type reported should be (0xA). Proceed to 'erase' step to unprotect chip.
-5. If chip is unprotected, serial monitor should display 'Handshake succeeded' along with chip type as (0xA). If not, follow instructions to retry.
+5. If chip is unprotected, serial monitor should display 'Handshake succeeded' along with chip type as (0xA). If handshake worked, try to erase anyway even if chip read fails.
 6. Type 'erase' command since the microcontroller is likely protected (this erases flash, cannot be recovered!).
 7. Type "setfuse 18 249" (sets reset pin as reset functionality rather than GPIO).
 8. Copy-paste hex lines starting with ':' into the serial monitor and hit the enter key.
