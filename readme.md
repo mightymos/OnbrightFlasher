@@ -4,7 +4,7 @@ This is intended to allow flashing 8051 based OBS38S003 microcontrollers as a ta
 An external ESP8266/ESP32 module or similar serves as the flasher.
 
 For manual programming each HEX line must be pasted into the serial monitor individually.  
-For automatic programming a Python script has been contributed that supports file upload.  
+For automatic programming a Python script has been contributed that supports file upload (thanks to @matlab22).  
 
 The sketch has successfully flashed a simple blink program.  
 
@@ -84,3 +84,4 @@ Not included at this time.
 
 
 ## More in depth [flashing guide by example](flashing-guide-by-example.md). ##
+
