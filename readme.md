@@ -18,20 +18,11 @@ The sketch has successfully flashed a simple blink program.
 |  ESP32S3 | WORKING  | none | 
 |  Arduino Mega 2560 board | WORKING | 5V to 3.3V level translation recommended |
 
-## Flashing using the Sonoff's internal ESP8285
-The ESP8285 present in the Sonoff RF Bridge R2 v2.2 could serve as the source flasher.  
-The USBRXD pin is bridged to SCL, while the USBTXD pin is bridged to SDA.  
-The reset pad would need to be soldered with a wire, though the datasheet is unclear if reset is active low or active high.  
+## Known Issues
 
-Note that the reset function on the reset pin of the stock Sonoff RF Bridge is probably disabled.  
-In other words, the pin is configured as general purpose input/output by fuse and thus the target cannot be held in reset.  
-Handshaking is apparently performed at microcontroller power up or restart.  
-Therefore, the flasher needs to first be powered while a same or independent power source is applied to the target during handshake.  
+Multiple ESP32 users reported downgrading library versions to allow I2C to work properly:  
+https://github.com/espressif/arduino-esp32/issues/11374
 
-Once setfuse is changed (see below) the ESP8285 on the Sonoff itself could be used to reflash the microcontroller.  
-However, this would require soldering a wire to the reset pad.  
-The original Sonoff black case with EFM8BB1 allowed microcontroller reset by a long pulse on an C2D pin but that is not available here.  
-Therefore it is ultimately probably easiest to just use an external flasher.  
 
 ## Status
 | Item | Status | Note | 
@@ -87,3 +78,17 @@ Not included at this time.
 ## More in depth [flashing guide by example](flashing-guide-by-example.md). ##
 
 
+## Flashing using the Sonoff's internal ESP8285
+The ESP8285 present in the Sonoff RF Bridge R2 v2.2 could theoretically serve as the source flasher.  
+The USBRXD pin is bridged to SCL, while the USBTXD pin is bridged to SDA.  
+The reset pad would need to be soldered with a wire, though the datasheet is unclear if reset is active low or active high.  
+
+Note that the reset function on the reset pin of the stock Sonoff RF Bridge is probably disabled.  
+In other words, the pin is configured as general purpose input/output by fuse and thus the target cannot be held in reset.  
+Handshaking is apparently performed at microcontroller power up or restart.  
+Therefore, for the first flash the flasher needs to first be powered while a same or independent power source is applied to the target during handshake.  
+
+Once setfuse is changed (see below) the ESP8285 on the Sonoff itself could be used to reflash the microcontroller.  
+However, this would require soldering a wire to the reset pad.  
+The original Sonoff black case with EFM8BB1 allowed microcontroller reset by a long pulse on an C2D pin but that is not available here.  
+Therefore it is ultimately probably easiest to just use an external flasher.  
