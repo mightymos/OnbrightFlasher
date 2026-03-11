@@ -92,3 +92,8 @@ Once setfuse is changed (see below) the ESP8285 on the Sonoff itself could be us
 However, this would require soldering a wire to the reset pad.  
 The original Sonoff black case with EFM8BB1 allowed microcontroller reset by a long pulse on an C2D pin but that is not available here.  
 Therefore it is ultimately probably easiest to just use an external flasher.  
+
+## Special Thanks
+Special thanks to @matlab22 for writing the flasher python script.  
+This script allowed flashing of large hex firmware automatically.  
+This not only allowed firmware development to proceed but made end user flashing much easier.
